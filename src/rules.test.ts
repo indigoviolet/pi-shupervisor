@@ -287,6 +287,36 @@ describe("matchRule", () => {
       ).toBeUndefined();
     });
 
+    it("skips rule when except string is present", () => {
+      const withExcept: RequireContextRule = {
+        ...rebaseRule,
+        except: ["--continue", "--abort", "--skip"],
+      };
+      expect(
+        matchRule(["git", "rebase", "--continue"], withExcept, "git rebase --continue"),
+      ).toBeUndefined();
+    });
+
+    it("skips rule for --abort", () => {
+      const withExcept: RequireContextRule = {
+        ...rebaseRule,
+        except: ["--continue", "--abort", "--skip"],
+      };
+      expect(
+        matchRule(["git", "rebase", "--abort"], withExcept, "git rebase --abort"),
+      ).toBeUndefined();
+    });
+
+    it("still blocks when except strings are absent", () => {
+      const withExcept: RequireContextRule = {
+        ...rebaseRule,
+        except: ["--continue", "--abort", "--skip"],
+      };
+      expect(
+        matchRule(["git", "rebase", "-i", "HEAD~3"], withExcept, "git rebase -i HEAD~3"),
+      ).toBe(rebaseRule.reason);
+    });
+
     it("works without subcommand in rule", () => {
       const noSub: RequireContextRule = {
         type: "require-context",

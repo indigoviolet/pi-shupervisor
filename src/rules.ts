@@ -73,6 +73,8 @@ export interface RequireContextRule {
   command: string;
   subcommand?: string;
   requires: string[];
+  /** If any of these strings appear in the command, the rule is skipped. */
+  except?: string[];
   reason: string;
   enabled?: boolean;
 }
@@ -129,8 +131,9 @@ export function matchRule(
     case "require-context": {
       if (words[0] !== rule.command) return undefined;
       if (rule.subcommand && words[1] !== rule.subcommand) return undefined;
-      // Check if all required strings appear in the raw command
       const text = rawCommand ?? words.join(" ");
+      // Skip if any except string is present
+      if (rule.except?.some((e) => text.includes(e))) return undefined;
       const allPresent = rule.requires.every((r) => text.includes(r));
       if (!allPresent) return rule.reason;
       return undefined;

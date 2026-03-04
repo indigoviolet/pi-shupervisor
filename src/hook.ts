@@ -73,6 +73,7 @@ export function checkCommandFallback(
         const cmdRe = new RegExp(`\\b${escapeRegex(rule.command)}\\b`);
         if (!cmdRe.test(command)) break;
         if (rule.subcommand && !command.includes(rule.subcommand)) break;
+        if (rule.except?.some((e) => command.includes(e))) break;
         const allPresent = rule.requires.every((r) => command.includes(r));
         if (!allPresent) return rule.reason;
         break;

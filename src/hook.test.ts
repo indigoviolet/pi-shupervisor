@@ -52,6 +52,7 @@ const TEST_RULES: Rule[] = [
     command: "git",
     subcommand: "rebase",
     requires: ["GIT_EDITOR=true", "GIT_SEQUENCE_EDITOR=:"],
+    except: ["--continue", "--abort", "--skip"],
     reason: "git rebase must set GIT_EDITOR and GIT_SEQUENCE_EDITOR",
   },
 ];
@@ -169,6 +170,18 @@ describe("lint (full pipeline)", () => {
 
     it("does not block git commit", () => {
       expect(lint("git commit -m 'test'", rules)).toBeUndefined();
+    });
+
+    it("allows git rebase --continue without env vars", () => {
+      expect(lint("git rebase --continue", rules)).toBeUndefined();
+    });
+
+    it("allows git rebase --abort without env vars", () => {
+      expect(lint("git rebase --abort", rules)).toBeUndefined();
+    });
+
+    it("allows git rebase --skip without env vars", () => {
+      expect(lint("git rebase --skip", rules)).toBeUndefined();
     });
   });
 
