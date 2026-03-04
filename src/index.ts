@@ -7,6 +7,7 @@
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { configLoader } from "./config.js";
+import { setupCommandLintHook } from "./hook.js";
 
 export default async function (pi: ExtensionAPI) {
   await configLoader.load();
@@ -14,5 +15,7 @@ export default async function (pi: ExtensionAPI) {
 
   if (!config.enabled) return;
 
-  // Phases 3-4: hook + commands will be wired here
+  setupCommandLintHook(pi);
+
+  // Phase 4: commands will be registered here
 }
