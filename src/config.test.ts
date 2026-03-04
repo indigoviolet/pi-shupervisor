@@ -130,4 +130,15 @@ describe("ruleKey", () => {
       }),
     ).toBe("forbid-pattern:yadm:add:-A,-u");
   });
+
+  it("forbid-arg-pattern rules key on command + pattern", () => {
+    expect(
+      ruleKey({
+        type: "forbid-arg-pattern",
+        command: "rg",
+        pattern: "\\\\\\|",
+        reason: "",
+      }),
+    ).toBe("forbid-arg-pattern:rg:\\\\\\|");
+  });
 });

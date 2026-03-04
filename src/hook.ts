@@ -55,6 +55,14 @@ export function checkCommandFallback(
         }
         break;
       }
+
+      case "forbid-arg-pattern": {
+        const cmdRe = new RegExp(`\\b${escapeRegex(rule.command)}\\b`);
+        if (!cmdRe.test(command)) break;
+        const re = new RegExp(rule.pattern);
+        if (re.test(command)) return rule.reason;
+        break;
+      }
     }
   }
   return undefined;

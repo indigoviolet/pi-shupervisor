@@ -33,6 +33,8 @@ export function ruleKey(rule: Rule): string {
       return `forbid-flag:${rule.command}:${[...rule.flags].sort().join(",")}`;
     case "forbid-pattern":
       return `forbid-pattern:${rule.command}:${rule.subcommand ?? ""}:${[...rule.flags].sort().join(",")}`;
+    case "forbid-arg-pattern":
+      return `forbid-arg-pattern:${rule.command}:${rule.pattern}`;
   }
 }
 

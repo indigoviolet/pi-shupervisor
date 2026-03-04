@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   checkCommand,
   matchRule,
+  type ForbidArgPatternRule,
   type ForbidFlagRule,
   type ForbidPatternRule,
   type PreferRule,
@@ -141,6 +142,57 @@ describe("matchRule", () => {
       expect(matchRule(["docker", "run", "--privileged", "img"], noSub)).toBe(
         noSub.reason,
       );
+    });
+  });
+
+  describe("forbid-arg-pattern rules", () => {
+    const escapedPipeRule: ForbidArgPatternRule = {
+      type: "forbid-arg-pattern",
+      command: "rg",
+      pattern: "\\\\\\|",
+      reason: "rg uses Rust regex — use `foo|bar` not `foo\\|bar`",
+    };
+
+    it("matches when an argument contains escaped pipe", () => {
+      expect(
+        matchRule(["rg", "foo\\|bar", "src/"], escapedPipeRule),
+      ).toBe(escapedPipeRule.reason);
+    });
+
+    it("does not match when no argument matches pattern", () => {
+      expect(
+        matchRule(["rg", "foo|bar", "src/"], escapedPipeRule),
+      ).toBeUndefined();
+    });
+
+    it("does not match different command", () => {
+      expect(
+        matchRule(["grep", "foo\\|bar"], escapedPipeRule),
+      ).toBeUndefined();
+    });
+
+    it("does not match command name itself against pattern", () => {
+      // Only args (words[1:]) are tested, not the command name
+      expect(
+        matchRule(["rg"], escapedPipeRule),
+      ).toBeUndefined();
+    });
+
+    it("respects enabled: false", () => {
+      expect(
+        matchRule(["rg", "foo\\|bar"], { ...escapedPipeRule, enabled: false }),
+      ).toBeUndefined();
+    });
+
+    it("works with other regex patterns", () => {
+      const dotStarRule: ForbidArgPatternRule = {
+        type: "forbid-arg-pattern",
+        command: "rm",
+        pattern: "^\\*$",
+        reason: "Don't rm *",
+      };
+      expect(matchRule(["rm", "*"], dotStarRule)).toBe(dotStarRule.reason);
+      expect(matchRule(["rm", "file.txt"], dotStarRule)).toBeUndefined();
     });
   });
 });

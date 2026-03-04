@@ -68,6 +68,21 @@ Blocks a specific combination of command, optional subcommand, and flags.
 
 Matches when command + subcommand + any forbidden flag are all present.
 
+### `forbid-arg-pattern` — Block arguments matching a regex
+
+Blocks a command when any of its arguments match a regex pattern.
+
+```json
+{
+  "type": "forbid-arg-pattern",
+  "command": "rg",
+  "pattern": "\\\\\\|",
+  "reason": "rg uses Rust regex syntax — use `foo|bar` for alternation, not `foo\\|bar`"
+}
+```
+
+Matches when the command name equals `command` AND any argument (after the command name) matches `pattern` as a regex.
+
 ## Configuration
 
 No rules are shipped by default — configure your own via global or project config files. Config files are JSON with optional `enabled` and `rules` fields.

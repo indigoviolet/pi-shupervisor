@@ -24,6 +24,8 @@ function ruleLabel(rule: Rule): string {
       const sub = rule.subcommand ? ` ${rule.subcommand}` : "";
       return `forbid-pattern: ${rule.command}${sub} ${rule.flags.join(", ")}`;
     }
+    case "forbid-arg-pattern":
+      return `forbid-arg-pattern: ${rule.command} /${rule.pattern}/`;
   }
 }
 

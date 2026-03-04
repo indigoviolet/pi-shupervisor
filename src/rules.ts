@@ -1,10 +1,11 @@
 /**
  * Rule DSL — type definitions and matching logic.
  *
- * Three rule types:
+ * Four rule types:
  * - prefer: block command X, suggest command Y
  * - forbid-flag: block specific flags on a command
  * - forbid-pattern: block command + subcommand + flag combinations
+ * - forbid-arg-pattern: block when any argument matches a regex
  */
 
 /**
@@ -45,7 +46,26 @@ export interface ForbidPatternRule {
   enabled?: boolean;
 }
 
-export type Rule = PreferRule | ForbidFlagRule | ForbidPatternRule;
+/**
+ * Rule: forbid arguments matching a regex pattern.
+ * Matches when words[0] === command AND any argument (words[1:]) matches
+ * the given regex pattern.
+ *
+ * Example: rg with grep-style escaped alternation (foo\|bar)
+ */
+export interface ForbidArgPatternRule {
+  type: "forbid-arg-pattern";
+  command: string;
+  pattern: string; // regex pattern to test against arguments
+  reason: string;
+  enabled?: boolean;
+}
+
+export type Rule =
+  | PreferRule
+  | ForbidFlagRule
+  | ForbidPatternRule
+  | ForbidArgPatternRule;
 
 /**
  * Check a single command (as string[] words) against a single rule.
@@ -71,6 +91,13 @@ export function matchRule(words: string[], rule: Rule): string | undefined {
       if (words[0] !== rule.command) return undefined;
       if (rule.subcommand && words[1] !== rule.subcommand) return undefined;
       if (words.some((w) => rule.flags.includes(w))) return rule.reason;
+      return undefined;
+    }
+
+    case "forbid-arg-pattern": {
+      if (words[0] !== rule.command) return undefined;
+      const re = new RegExp(rule.pattern);
+      if (words.slice(1).some((w) => re.test(w))) return rule.reason;
       return undefined;
     }
   }

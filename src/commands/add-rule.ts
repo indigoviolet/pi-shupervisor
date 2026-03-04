@@ -93,6 +93,18 @@ Matches when command name equals \`command\` AND any argument matches a flag in 
 \`\`\`
 Matches when command + subcommand + any forbidden flag all present.
 
+### 4. \`forbid-arg-pattern\` — Block arguments matching a regex
+\`\`\`json
+{
+  "type": "forbid-arg-pattern",
+  "command": "rg",           // command name
+  "pattern": "\\\\\\\\\\\\|",  // regex pattern tested against each argument
+  "reason": "rg uses Rust regex — use foo|bar not foo\\\\|bar",
+  "enabled": true
+}
+\`\`\`
+Matches when command name equals \`command\` AND any argument (after command name) matches \`pattern\` as a regex.
+
 To disable a rule defined in a higher scope (e.g. global), add it with \`"enabled": false\`.
 
 ## Instructions

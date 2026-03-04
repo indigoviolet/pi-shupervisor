@@ -34,6 +34,12 @@ const TEST_RULES: Rule[] = [
     flags: ["-u", "-A"],
     reason: "Stage files explicitly",
   },
+  {
+    type: "forbid-arg-pattern",
+    command: "rg",
+    pattern: "\\\\\\|",
+    reason: "rg uses Rust regex — use foo|bar not foo\\|bar",
+  },
 ];
 
 describe("checkCommandFallback", () => {
@@ -75,6 +81,18 @@ describe("checkCommandFallback", () => {
   it("does not match yadm without add subcommand", () => {
     expect(
       checkCommandFallback("yadm status -u", rules),
+    ).toBeUndefined();
+  });
+
+  it("catches rg with escaped pipe via forbid-arg-pattern", () => {
+    expect(
+      checkCommandFallback("rg 'foo\\|bar' src/", rules),
+    ).toBeDefined();
+  });
+
+  it("does not catch rg with proper alternation via forbid-arg-pattern", () => {
+    expect(
+      checkCommandFallback("rg 'foo|bar' src/", rules),
     ).toBeUndefined();
   });
 });

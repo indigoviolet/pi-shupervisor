@@ -34,6 +34,12 @@ const TEST_RULES: Rule[] = [
     flags: ["-u", "-A"],
     reason: "Stage files explicitly",
   },
+  {
+    type: "forbid-arg-pattern",
+    command: "rg",
+    pattern: "\\\\\\|",
+    reason: "rg uses Rust regex — use foo|bar not foo\\|bar",
+  },
 ];
 
 describe("lint (full pipeline)", () => {
@@ -95,6 +101,24 @@ describe("lint (full pipeline)", () => {
 
     it("allows yadm status", () => {
       expect(lint("yadm status", rules)).toBeUndefined();
+    });
+  });
+
+  describe("forbid-arg-pattern rules", () => {
+    it("blocks rg with escaped pipe alternation", () => {
+      expect(lint("rg 'foo\\|bar' src/", rules)).toBeDefined();
+    });
+
+    it("allows rg with proper alternation", () => {
+      expect(lint("rg 'foo|bar' src/", rules)).toBeUndefined();
+    });
+
+    it("blocks rg with escaped pipe in pipeline", () => {
+      expect(lint("rg 'foo\\|bar' src/ | head", rules)).toBeDefined();
+    });
+
+    it("blocks rg with escaped pipe through wrapper", () => {
+      expect(lint("sudo rg 'foo\\|bar' src/", rules)).toBeDefined();
     });
   });
 
