@@ -61,17 +61,41 @@ export interface ForbidArgPatternRule {
   enabled?: boolean;
 }
 
+/**
+ * Rule: require certain strings in a command.
+ * Matches (blocks) when words[0] === command AND words[1] === subcommand (if set)
+ * AND NOT all `requires` strings appear in the full raw command.
+ *
+ * Example: git rebase must include GIT_EDITOR=true and GIT_SEQUENCE_EDITOR=:
+ */
+export interface RequireContextRule {
+  type: "require-context";
+  command: string;
+  subcommand?: string;
+  requires: string[];
+  reason: string;
+  enabled?: boolean;
+}
+
 export type Rule =
   | PreferRule
   | ForbidFlagRule
   | ForbidPatternRule
-  | ForbidArgPatternRule;
+  | ForbidArgPatternRule
+  | RequireContextRule;
 
 /**
  * Check a single command (as string[] words) against a single rule.
  * Returns the block reason if matched, undefined otherwise.
+ *
+ * @param rawCommand - the full raw command string, needed for require-context
+ *   checks (env var assignments aren't in words).
  */
-export function matchRule(words: string[], rule: Rule): string | undefined {
+export function matchRule(
+  words: string[],
+  rule: Rule,
+  rawCommand?: string,
+): string | undefined {
   if (words.length === 0) return undefined;
   if (rule.enabled === false) return undefined;
 
@@ -90,7 +114,6 @@ export function matchRule(words: string[], rule: Rule): string | undefined {
     case "forbid-pattern": {
       if (words[0] !== rule.command) return undefined;
       if (rule.subcommand && words[1] !== rule.subcommand) return undefined;
-      // Empty flags = match on command+subcommand alone
       if (rule.flags.length === 0) return rule.reason;
       if (words.some((w) => rule.flags.includes(w))) return rule.reason;
       return undefined;
@@ -100,6 +123,16 @@ export function matchRule(words: string[], rule: Rule): string | undefined {
       if (words[0] !== rule.command) return undefined;
       const re = new RegExp(rule.pattern);
       if (words.slice(1).some((w) => re.test(w))) return rule.reason;
+      return undefined;
+    }
+
+    case "require-context": {
+      if (words[0] !== rule.command) return undefined;
+      if (rule.subcommand && words[1] !== rule.subcommand) return undefined;
+      // Check if all required strings appear in the raw command
+      const text = rawCommand ?? words.join(" ");
+      const allPresent = rule.requires.every((r) => text.includes(r));
+      if (!allPresent) return rule.reason;
       return undefined;
     }
   }
@@ -112,9 +145,10 @@ export function matchRule(words: string[], rule: Rule): string | undefined {
 export function checkCommand(
   words: string[],
   rules: Rule[],
+  rawCommand?: string,
 ): string | undefined {
   for (const rule of rules) {
-    const reason = matchRule(words, rule);
+    const reason = matchRule(words, rule, rawCommand);
     if (reason) return reason;
   }
   return undefined;

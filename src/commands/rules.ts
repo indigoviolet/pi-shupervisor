@@ -20,6 +20,10 @@ function formatRule(rule: Rule): string {
     }
     case "forbid-arg-pattern":
       return `  forbid-arg-pattern: ${rule.command} /${rule.pattern}/${status}\n    ${rule.reason}`;
+    case "require-context": {
+      const sub = rule.subcommand ? ` ${rule.subcommand}` : "";
+      return `  require-context: ${rule.command}${sub} requires [${rule.requires.join(", ")}]${status}\n    ${rule.reason}`;
+    }
   }
 }
 

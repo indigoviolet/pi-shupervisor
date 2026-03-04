@@ -68,6 +68,15 @@ export function checkCommandFallback(
         if (re.test(command)) return rule.reason;
         break;
       }
+
+      case "require-context": {
+        const cmdRe = new RegExp(`\\b${escapeRegex(rule.command)}\\b`);
+        if (!cmdRe.test(command)) break;
+        if (rule.subcommand && !command.includes(rule.subcommand)) break;
+        const allPresent = rule.requires.every((r) => command.includes(r));
+        if (!allPresent) return rule.reason;
+        break;
+      }
     }
   }
   return undefined;
@@ -143,7 +152,7 @@ export function lint(
       const allCommands = unwrapCommand(words);
 
       for (const cmdWords of allCommands) {
-        const reason = checkCommand(cmdWords, activeRules);
+        const reason = checkCommand(cmdWords, activeRules, command);
         if (reason) {
           violation = reason;
           return true; // stop walking

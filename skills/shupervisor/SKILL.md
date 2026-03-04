@@ -80,6 +80,20 @@ With empty `flags`, blocks the subcommand outright:
 }
 ```
 
+### `require-context` — Require certain strings in a command
+
+```json
+{
+  "type": "require-context",
+  "command": "git",
+  "subcommand": "rebase",
+  "requires": ["GIT_EDITOR=true", "GIT_SEQUENCE_EDITOR=:"],
+  "reason": "git rebase must set GIT_EDITOR=true and GIT_SEQUENCE_EDITOR=:"
+}
+```
+
+Blocks when command (+ optional subcommand) matches but NOT all `requires` strings appear in the full command.
+
 ## Config files
 
 | Scope | Path |

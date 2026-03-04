@@ -47,6 +47,13 @@ const TEST_RULES: Rule[] = [
     flags: [],
     reason: "Don't use git stash",
   },
+  {
+    type: "require-context",
+    command: "git",
+    subcommand: "rebase",
+    requires: ["GIT_EDITOR=true", "GIT_SEQUENCE_EDITOR=:"],
+    reason: "git rebase must set GIT_EDITOR and GIT_SEQUENCE_EDITOR",
+  },
 ];
 
 describe("lint (full pipeline)", () => {
@@ -139,6 +146,28 @@ describe("lint (full pipeline)", () => {
     });
 
     it("allows git commit", () => {
+      expect(lint("git commit -m 'test'", rules)).toBeUndefined();
+    });
+  });
+
+  describe("require-context rules", () => {
+    it("blocks git rebase without env vars", () => {
+      expect(lint("git rebase -i HEAD~3", rules)).toBeDefined();
+    });
+
+    it("blocks git rebase with only one env var", () => {
+      expect(lint("GIT_EDITOR=true git rebase -i HEAD~3", rules)).toBeDefined();
+    });
+
+    it("allows git rebase with both env vars", () => {
+      expect(lint("GIT_EDITOR=true GIT_SEQUENCE_EDITOR=: git rebase -i HEAD~3", rules)).toBeUndefined();
+    });
+
+    it("allows git rebase with env vars in any order", () => {
+      expect(lint("GIT_SEQUENCE_EDITOR=: GIT_EDITOR=true git rebase -i HEAD~3", rules)).toBeUndefined();
+    });
+
+    it("does not block git commit", () => {
       expect(lint("git commit -m 'test'", rules)).toBeUndefined();
     });
   });

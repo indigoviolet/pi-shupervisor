@@ -6,6 +6,7 @@ import {
   type ForbidFlagRule,
   type ForbidPatternRule,
   type PreferRule,
+  type RequireContextRule,
   type Rule,
 } from "./rules.js";
 
@@ -226,6 +227,83 @@ describe("matchRule", () => {
       };
       expect(matchRule(["rm", "*"], dotStarRule)).toBe(dotStarRule.reason);
       expect(matchRule(["rm", "file.txt"], dotStarRule)).toBeUndefined();
+    });
+  });
+
+  describe("require-context rules", () => {
+    const rebaseRule: RequireContextRule = {
+      type: "require-context",
+      command: "git",
+      subcommand: "rebase",
+      requires: ["GIT_EDITOR=true", "GIT_SEQUENCE_EDITOR=:"],
+      reason: "git rebase must set GIT_EDITOR=true and GIT_SEQUENCE_EDITOR=:",
+    };
+
+    it("blocks when required strings are missing", () => {
+      expect(
+        matchRule(["git", "rebase", "-i", "HEAD~3"], rebaseRule, "git rebase -i HEAD~3"),
+      ).toBe(rebaseRule.reason);
+    });
+
+    it("blocks when only one required string is present", () => {
+      expect(
+        matchRule(
+          ["git", "rebase", "-i", "HEAD~3"],
+          rebaseRule,
+          "GIT_EDITOR=true git rebase -i HEAD~3",
+        ),
+      ).toBe(rebaseRule.reason);
+    });
+
+    it("allows when all required strings are present", () => {
+      expect(
+        matchRule(
+          ["git", "rebase", "-i", "HEAD~3"],
+          rebaseRule,
+          "GIT_EDITOR=true GIT_SEQUENCE_EDITOR=: git rebase -i HEAD~3",
+        ),
+      ).toBeUndefined();
+    });
+
+    it("does not match different command", () => {
+      expect(
+        matchRule(["hg", "rebase"], rebaseRule, "hg rebase"),
+      ).toBeUndefined();
+    });
+
+    it("does not match different subcommand", () => {
+      expect(
+        matchRule(["git", "merge"], rebaseRule, "git merge"),
+      ).toBeUndefined();
+    });
+
+    it("respects enabled: false", () => {
+      expect(
+        matchRule(
+          ["git", "rebase"],
+          { ...rebaseRule, enabled: false },
+          "git rebase",
+        ),
+      ).toBeUndefined();
+    });
+
+    it("works without subcommand in rule", () => {
+      const noSub: RequireContextRule = {
+        type: "require-context",
+        command: "docker",
+        requires: ["--security-opt"],
+        reason: "docker must include --security-opt",
+      };
+      expect(
+        matchRule(["docker", "run", "img"], noSub, "docker run img"),
+      ).toBe(noSub.reason);
+      expect(
+        matchRule(
+          ["docker", "run", "--security-opt", "no-new-privileges", "img"],
+          noSub,
+          "docker run --security-opt no-new-privileges img",
+        ),
+      ).toBeUndefined();
     });
   });
 });

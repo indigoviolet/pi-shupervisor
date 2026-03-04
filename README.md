@@ -83,6 +83,22 @@ Blocks a command when any of its arguments match a regex pattern.
 
 Matches when the command name equals `command` AND any argument (after the command name) matches `pattern` as a regex.
 
+### `require-context` — Require strings in a command
+
+Blocks a command unless all required strings are present in the full command text.
+
+```json
+{
+  "type": "require-context",
+  "command": "git",
+  "subcommand": "rebase",
+  "requires": ["GIT_EDITOR=true", "GIT_SEQUENCE_EDITOR=:"],
+  "reason": "git rebase must set GIT_EDITOR=true and GIT_SEQUENCE_EDITOR=:"
+}
+```
+
+Matches when command (+ optional subcommand) matches but NOT all `requires` strings appear. Checks the full raw command, so env var prefixes like `GIT_EDITOR=true git rebase ...` are detected.
+
 ## Configuration
 
 No rules are shipped by default — configure your own via global or project config files. Config files are JSON with optional `enabled` and `rules` fields.

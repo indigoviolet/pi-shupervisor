@@ -29,6 +29,8 @@ export function ruleKey(rule: Rule): string {
       return `forbid-pattern:${rule.command}:${rule.subcommand ?? ""}:${[...rule.flags].sort().join(",")}`;
     case "forbid-arg-pattern":
       return `forbid-arg-pattern:${rule.command}:${rule.pattern}`;
+    case "require-context":
+      return `require-context:${rule.command}:${rule.subcommand ?? ""}:${[...rule.requires].sort().join(",")}`;
   }
 }
 

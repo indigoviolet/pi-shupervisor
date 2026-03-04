@@ -40,6 +40,13 @@ const TEST_RULES: Rule[] = [
     pattern: "\\\\\\|",
     reason: "rg uses Rust regex — use foo|bar not foo\\|bar",
   },
+  {
+    type: "require-context",
+    command: "git",
+    subcommand: "rebase",
+    requires: ["GIT_EDITOR=true", "GIT_SEQUENCE_EDITOR=:"],
+    reason: "git rebase must set env vars",
+  },
 ];
 
 describe("checkCommandFallback", () => {
@@ -93,6 +100,18 @@ describe("checkCommandFallback", () => {
   it("does not catch rg with proper alternation via forbid-arg-pattern", () => {
     expect(
       checkCommandFallback("rg 'foo|bar' src/", rules),
+    ).toBeUndefined();
+  });
+
+  it("catches git rebase without env vars via require-context", () => {
+    expect(
+      checkCommandFallback("git rebase -i HEAD~3", rules),
+    ).toBeDefined();
+  });
+
+  it("allows git rebase with env vars via require-context", () => {
+    expect(
+      checkCommandFallback("GIT_EDITOR=true GIT_SEQUENCE_EDITOR=: git rebase -i HEAD~3", rules),
     ).toBeUndefined();
   });
 });
