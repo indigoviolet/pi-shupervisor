@@ -96,6 +96,72 @@ describe("mergeRules", () => {
   });
 });
 
+describe("mergeRules — global + local scoping", () => {
+  const globalRules: Rule[] = [
+    { type: "prefer", instead_of: "grep", use: "rg", reason: "Use rg" },
+    { type: "prefer", instead_of: "find", use: "fd", reason: "Use fd" },
+    { type: "forbid-flag", command: "rg", flags: ["-rn"], reason: "-rn is bad" },
+    { type: "forbid-pattern", command: "git", subcommand: "stash", flags: [], reason: "No stash" },
+    { type: "forbid-pattern", command: "git", subcommand: "reset", flags: ["--hard"], reason: "No hard reset" },
+  ];
+
+  it("local rules add to global without clobbering", () => {
+    const localRules: Rule[] = [
+      { type: "prefer", instead_of: "npm", use: "pnpm", reason: "Use pnpm" },
+    ];
+    const result = mergeRules(globalRules, localRules);
+    expect(result.length).toBe(6);
+    expect(result.find(r => r.type === "prefer" && (r as PreferRule).instead_of === "npm")).toBeDefined();
+    expect(result.find(r => r.type === "prefer" && (r as PreferRule).instead_of === "grep")).toBeDefined();
+  });
+
+  it("local rules override global by key", () => {
+    const localRules: Rule[] = [
+      { type: "prefer", instead_of: "grep", use: "ag", reason: "Use ag here" },
+    ];
+    const result = mergeRules(globalRules, localRules);
+    expect(result.length).toBe(5);
+    const grepRule = result.find(r => r.type === "prefer" && (r as PreferRule).instead_of === "grep") as PreferRule;
+    expect(grepRule.use).toBe("ag");
+  });
+
+  it("local rules can disable a global rule", () => {
+    const localRules: Rule[] = [
+      { type: "prefer", instead_of: "grep", use: "rg", reason: "", enabled: false },
+    ];
+    const result = mergeRules(globalRules, localRules);
+    expect(result.length).toBe(5);
+    const grepRule = result.find(r => r.type === "prefer" && (r as PreferRule).instead_of === "grep");
+    expect(grepRule?.enabled).toBe(false);
+  });
+
+  it("all global rules survive when local adds new ones", () => {
+    const localRules: Rule[] = [
+      { type: "prefer", instead_of: "npm", use: "pnpm", reason: "Use pnpm" },
+      { type: "forbid-pattern", command: "docker", subcommand: "run", flags: ["--privileged"], reason: "No privileged" },
+    ];
+    const result = mergeRules(globalRules, localRules);
+    expect(result.length).toBe(7);
+    // All 5 global rules present
+    for (const rule of globalRules) {
+      expect(result.find(r => ruleKey(r) === ruleKey(rule))).toBeDefined();
+    }
+  });
+
+  it("empty local does not affect global", () => {
+    const result = mergeRules(globalRules, []);
+    expect(result).toEqual(globalRules);
+  });
+
+  it("empty global returns local as-is", () => {
+    const localRules: Rule[] = [
+      { type: "prefer", instead_of: "npm", use: "pnpm", reason: "Use pnpm" },
+    ];
+    const result = mergeRules([], localRules);
+    expect(result).toEqual(localRules);
+  });
+});
+
 describe("ruleKey", () => {
   it("prefer rules key on instead_of", () => {
     expect(
