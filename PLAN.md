@@ -27,7 +27,7 @@ pi-shupervisor/
 │   ├── fallback.test.ts      # Regex fallback matching
 │   └── commands/
 │       ├── settings.ts       # /shupervisor:settings command
-│       └── add-rule.ts       # /shupervisor:add command + save_shupervisor_rule tool
+│       └── add-rule.ts       # /shupervisor:add command
 ```
 
 ---
@@ -542,10 +542,9 @@ For now, adding/editing/removing rules requires editing the JSON config file dir
 
 ### Mechanism
 
-Two pieces work together:
+`/shupervisor:add <natural language>` — a command the user types. It injects DSL docs, the config file path, and current contents into the conversation. The agent then uses the standard `read`/`edit`/`write` tools to modify the JSON file directly.
 
-1. **`/shupervisor:add <natural language>`** — a command the user types  
-2. **`save_shupervisor_rule`** — a tool the agent calls to persist the rule
+No custom tool needed.
 
 ### Flow
 
@@ -554,31 +553,51 @@ User types:  /shupervisor:add don't use cat to read files, use bat instead
      │
      ▼
 Command handler:
-  1. Reads current resolved rules from configLoader
-  2. Asks user: save to "local" (.pi/extensions/) or "global" (~/.pi/agent/extensions/)?
-  3. Sends a user message (via pi.sendUserMessage) containing:
+  1. Asks user: save to "local" or "global"? (ctx.ui.select)
+  2. Resolves the file path for that scope
+  3. Reads current file contents (or notes it doesn't exist yet)
+  4. Sends a user message (via pi.sendUserMessage) containing:
+     - The config file path
      - The DSL schema documentation (rule types, fields, examples)
-     - The current rules for the selected scope (so agent can see what exists)
+     - Current file contents (or empty template)
      - The user's natural language request
-     - Instruction to call the save_shupervisor_rule tool with the result
+     - Instruction: edit/write the file, then tell the user what was done
      │
      ▼
 Agent (LLM):
-  - Sees the DSL docs, current rules, and user intent
+  - Sees the DSL docs, file path, current contents, and user intent
   - Formulates the correct Rule JSON
-  - Calls save_shupervisor_rule tool
-     │
-     ▼
-Tool handler:
-  - Validates the rule JSON against the type schema
-  - Merges into the selected scope's config
-  - Saves via configLoader.save()
-  - Returns confirmation
+  - Uses write/edit to update the config file
+  - Reports what it did
 ```
 
 ### Command registration
 
 ```typescript
+import { readFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { getAgentDir } from "@mariozechner/pi-coding-agent";
+import { resolve } from "node:path";
+
+// Resolve config file paths (mirrors ConfigLoader internals)
+function getConfigPath(scope: "local" | "global"): string | null {
+  if (scope === "global") {
+    return resolve(getAgentDir(), "extensions/shupervisor.json");
+  }
+  // Walk up from cwd to find .pi directory
+  let dir = process.cwd();
+  while (true) {
+    const piDir = resolve(dir, ".pi");
+    if (existsSync(piDir)) {
+      return resolve(piDir, "extensions/shupervisor.json");
+    }
+    const parent = resolve(dir, "..");
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return null;
+}
+
 pi.registerCommand("shupervisor:add", {
   description: "Add or edit a shupervisor rule (natural language)",
   handler: async (args, ctx) => {
@@ -587,21 +606,29 @@ pi.registerCommand("shupervisor:add", {
       return;
     }
 
-    // Ask which scope to save to
+    // Ask which scope
     const scope = await ctx.ui.select(
       "Save rule to:",
       ["local (.pi/extensions/shupervisor.json)", "global (~/.pi/agent/extensions/shupervisor.json)"]
     );
     if (!scope) return;
-    const targetScope = scope.startsWith("local") ? "local" : "global";
+    const targetScope: "local" | "global" = scope.startsWith("local") ? "local" : "global";
 
-    // Build context message for the agent
-    const currentRules = configLoader.getRawConfig(targetScope)?.rules ?? [];
-    const resolvedRules = configLoader.getConfig().rules;
+    const filePath = getConfigPath(targetScope);
+    if (!filePath) {
+      ctx.ui.notify("Could not resolve config path (no .pi directory found)", "error");
+      return;
+    }
 
-    const prompt = buildRulePrompt(args, targetScope, currentRules, resolvedRules);
+    // Read current file contents
+    let currentContents = "";
+    try {
+      currentContents = await readFile(filePath, "utf-8");
+    } catch {
+      currentContents = ""; // file doesn't exist yet
+    }
 
-    // Send as a user message — triggers an agent turn
+    const prompt = buildRulePrompt(args, filePath, currentContents);
     pi.sendUserMessage(prompt);
   },
 });
@@ -612,17 +639,23 @@ pi.registerCommand("shupervisor:add", {
 ```typescript
 function buildRulePrompt(
   userRequest: string,
-  scope: "local" | "global",
-  scopeRules: Rule[],
-  allRules: Rule[],
+  filePath: string,
+  currentContents: string,
 ): string {
-  return `I need you to create or edit a shupervisor rule based on this request:
+  const fileStatus = currentContents
+    ? `Current contents of \`${filePath}\`:\n\`\`\`json\n${currentContents}\`\`\``
+    : `The file \`${filePath}\` does not exist yet. Create it with this template:\n\`\`\`json\n{\n  "rules": []\n}\n\`\`\``;
+
+  return `Add or edit a shupervisor rule based on this request:
 
 > ${userRequest}
 
+## Config file
+${fileStatus}
+
 ## Rule DSL Reference
 
-Shupervisor rules are JSON objects with a \`type\` discriminator. There are three types:
+The config file is JSON with a top-level \`rules\` array. Each rule is an object with a \`type\` discriminator:
 
 ### 1. \`prefer\` — Use tool X instead of tool Y
 \`\`\`json
@@ -646,7 +679,7 @@ Matches when the command name (first word) equals \`instead_of\`.
   "enabled": true
 }
 \`\`\`
-Matches when command name equals \`command\` AND any word matches a flag in \`flags\`.
+Matches when command name equals \`command\` AND any argument matches a flag in \`flags\`.
 
 ### 3. \`forbid-pattern\` — Block a command + subcommand + flag combination
 \`\`\`json
@@ -661,161 +694,35 @@ Matches when command name equals \`command\` AND any word matches a flag in \`fl
 \`\`\`
 Matches when command + subcommand + any forbidden flag all present.
 
-## Current rules in ${scope} scope
-\`\`\`json
-${JSON.stringify(scopeRules, null, 2) || "[]"}
-\`\`\`
-
-## All active rules (merged from all scopes)
-\`\`\`json
-${JSON.stringify(allRules, null, 2)}
-\`\`\`
+To disable a built-in default rule, add it with \`"enabled": false\`.
 
 ## Instructions
-- Determine the correct rule type and fields for the user's request
-- If a matching rule already exists in the ${scope} scope, edit it (preserve its other fields)
-- If it's new, create it
-- Call the \`save_shupervisor_rule\` tool with:
-  - \`scope\`: "${scope}"
-  - \`rule\`: the complete rule JSON object
-  - \`action\`: "add" (new rule) or "update" (modify existing)
-- To disable an existing default rule, set \`enabled: false\``;
+- Edit or create \`${filePath}\` with the appropriate rule added/modified in the \`rules\` array.
+- Preserve any existing rules in the file.
+- Use the \`write\` or \`edit\` tool to make the change.
+- Tell me what you did.`;
 }
 ```
 
-### Tool registration
+### Why this approach?
 
-```typescript
-import { Type } from "@sinclair/typebox";
-import { StringEnum } from "@mariozechner/pi-ai";
-
-pi.registerTool({
-  name: "save_shupervisor_rule",
-  label: "Save Shupervisor Rule",
-  description: "Save a shupervisor rule to the specified config scope. Called after /shupervisor:add.",
-  parameters: Type.Object({
-    scope: StringEnum(["local", "global"] as const),
-    action: StringEnum(["add", "update"] as const),
-    rule: Type.Object({
-      type: StringEnum(["prefer", "forbid-flag", "forbid-pattern"] as const),
-      // Fields vary by type — accept all possible fields, validate in execute
-      instead_of: Type.Optional(Type.String()),
-      use: Type.Optional(Type.String()),
-      command: Type.Optional(Type.String()),
-      subcommand: Type.Optional(Type.String()),
-      flags: Type.Optional(Type.Array(Type.String())),
-      reason: Type.String(),
-      enabled: Type.Optional(Type.Boolean()),
-    }),
-  }),
-
-  async execute(toolCallId, params, signal, onUpdate, ctx) {
-    const { scope, action, rule } = params;
-
-    // Validate rule shape based on type
-    const validation = validateRule(rule);
-    if (!validation.ok) {
-      return {
-        content: [{ type: "text", text: `Invalid rule: ${validation.error}` }],
-        isError: true,
-      };
-    }
-
-    // Load current scope config
-    const current = configLoader.getRawConfig(scope) ?? {};
-    const existingRules: Rule[] = current.rules ?? [];
-
-    let newRules: Rule[];
-    const key = ruleKey(rule as Rule);
-
-    if (action === "update") {
-      // Find and replace by key
-      const idx = existingRules.findIndex(r => ruleKey(r) === key);
-      if (idx >= 0) {
-        newRules = [...existingRules];
-        newRules[idx] = rule as Rule;
-      } else {
-        // Key not found — add it anyway
-        newRules = [...existingRules, rule as Rule];
-      }
-    } else {
-      // Check for duplicate
-      const exists = existingRules.some(r => ruleKey(r) === key);
-      if (exists) {
-        return {
-          content: [{ type: "text", text: `Rule already exists (key: ${key}). Use action: "update" to modify it.` }],
-          isError: true,
-        };
-      }
-      newRules = [...existingRules, rule as Rule];
-    }
-
-    // Save
-    await configLoader.save(scope, { ...current, rules: newRules });
-
-    // Reload the hook's rule set (hot reload)
-    // The configLoader.save() already re-merges, but the hook captured
-    // config at init time. We need to update the live reference.
-    // This is handled by having the hook read from configLoader.getConfig()
-    // on each tool_call instead of capturing at init.
-
-    const scopeLabel = scope === "local"
-      ? ".pi/extensions/shupervisor.json"
-      : "~/.pi/agent/extensions/shupervisor.json";
-
-    return {
-      content: [{
-        type: "text",
-        text: `Rule ${action === "add" ? "added" : "updated"} in ${scopeLabel}:\n\n${JSON.stringify(rule, null, 2)}`,
-      }],
-    };
-  },
-});
-```
-
-### Rule validation
-
-```typescript
-function validateRule(rule: Record<string, unknown>): { ok: true } | { ok: false; error: string } {
-  if (!rule.type) return { ok: false, error: "missing type" };
-  if (!rule.reason) return { ok: false, error: "missing reason" };
-
-  switch (rule.type) {
-    case "prefer":
-      if (!rule.instead_of) return { ok: false, error: "prefer rule requires instead_of" };
-      if (!rule.use) return { ok: false, error: "prefer rule requires use" };
-      return { ok: true };
-    case "forbid-flag":
-      if (!rule.command) return { ok: false, error: "forbid-flag rule requires command" };
-      if (!rule.flags || !Array.isArray(rule.flags) || rule.flags.length === 0)
-        return { ok: false, error: "forbid-flag rule requires non-empty flags array" };
-      return { ok: true };
-    case "forbid-pattern":
-      if (!rule.command) return { ok: false, error: "forbid-pattern rule requires command" };
-      if (!rule.flags || !Array.isArray(rule.flags) || rule.flags.length === 0)
-        return { ok: false, error: "forbid-pattern rule requires non-empty flags array" };
-      return { ok: true };
-    default:
-      return { ok: false, error: `unknown rule type: ${rule.type}` };
-  }
-}
-```
-
-### Design note: why command + tool, not just a tool?
-
-The command is needed because:
-- The user initiates this ("add a rule that...") — it's not something the agent does unprompted
-- The command handles the scope selection UI (`ctx.ui.select`)
-- The command injects the DSL docs as context — without this, the agent would need the docs in its system prompt permanently, wasting context
-- The tool handles persistence — the agent formulates the rule JSON and calls the tool
-
-Alternative considered: a single tool where the agent reads a file. Rejected because:
-- Requires the agent to already know the DSL (chicken-and-egg)
-- No way to pick scope without UI
+- **No custom tool** — the agent already has `read`/`edit`/`write`
+- **DSL docs injected on demand** — not wasting system prompt context permanently
+- **Scope selection via UI** — the command handles this before the agent sees anything
+- **Agent sees the actual file** — can make intelligent edits (add to existing array, avoid duplicates, fix formatting)
+- **Agent can handle edge cases** — e.g. "change the reason on the grep rule" — it reads the file, finds the rule, edits the reason field. A custom tool would need explicit update-by-key logic.
 
 ### Hot reload consideration
 
-The `tool_call` hook must read rules from `configLoader.getConfig()` on each invocation (not capture `config.rules` at init time) so that newly saved rules take effect immediately without `/reload`.
+After the agent writes the file, the rules won't take effect until the config is reloaded. Options:
+
+1. **Tell the user to `/reload`** — simplest, included in the agent's response naturally
+2. **`configLoader.load()` in a `tool_result` handler** — watch for writes to `shupervisor.json` and auto-reload. More complex but seamless.
+3. **The hook reads from `configLoader.getConfig()` per invocation + auto-reload on file change** — best UX
+
+For v1: option 1 (tell user to `/reload`). The prompt can include this instruction.
+
+The `tool_call` hook should still read rules from `configLoader.getConfig()` per invocation (not capture at init) so that `/reload` works correctly:
 
 ```typescript
 // In hook.ts — use a getter, not a captured value
