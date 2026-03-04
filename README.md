@@ -151,10 +151,6 @@ When a command is blocked, the reason message includes this override hint so the
 
 ## Commands
 
-### `/shupervisor:settings`
-
-Interactive settings UI. Toggle the extension on/off and enable/disable individual rules. Changes are saved with Ctrl+S.
-
 ### `/shupervisor:add <description>`
 
 Add or edit a rule using natural language. The command injects the rule DSL documentation and current config file contents into the conversation, and the agent edits the config file directly.

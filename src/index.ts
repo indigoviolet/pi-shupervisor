@@ -8,7 +8,6 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { configLoader } from "./config.js";
 import { setupCommandLintHook } from "./hook.js";
-import { registerShupervisorSettings } from "./commands/settings.js";
 import { registerAddRuleCommand } from "./commands/add-rule.js";
 
 export default async function (pi: ExtensionAPI) {
@@ -18,6 +17,5 @@ export default async function (pi: ExtensionAPI) {
   if (!config.enabled) return;
 
   setupCommandLintHook(pi);
-  registerShupervisorSettings(pi);
   registerAddRuleCommand(pi);
 }
