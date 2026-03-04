@@ -10,7 +10,6 @@ import type { Rule } from "./rules.js";
 export interface ShupervisorConfig {
   enabled?: boolean;
   rules?: Rule[];
-  replaceDefaults?: boolean;
 }
 
 // ---------- Resolved config (all required) ----------
@@ -18,42 +17,11 @@ export interface ShupervisorConfig {
 export interface ResolvedConfig {
   enabled: boolean;
   rules: Rule[];
-  useDefaults: boolean;
 }
 
-// ---------- Default rules ----------
+// ---------- Default rules (empty — configure via global/project config files) ----------
 
-export const DEFAULT_RULES: Rule[] = [
-  {
-    type: "prefer",
-    instead_of: "grep",
-    use: "rg",
-    reason:
-      "Use `rg` instead of `grep` — it's faster, respects .gitignore, and uses Rust regex syntax. Recursive search is the default.",
-  },
-  {
-    type: "prefer",
-    instead_of: "find",
-    use: "fd",
-    reason:
-      "Use `fd` instead of `find` — simpler syntax, respects .gitignore, smart case by default.",
-  },
-  {
-    type: "forbid-flag",
-    command: "rg",
-    flags: ["-rn"],
-    reason:
-      "`rg -rn` means `--replace n`, replacing every match with the letter 'n'. Recursive is the default in rg. Use `rg -n` for line numbers (also default in terminals).",
-  },
-  {
-    type: "forbid-pattern",
-    command: "yadm",
-    subcommand: "add",
-    flags: ["-u", "-A"],
-    reason:
-      "Never use `yadm add -u` or `yadm add -A` — the home directory has too many tracked files. Always stage files explicitly: `yadm add <file> ...`",
-  },
-];
+export const DEFAULT_RULES: Rule[] = [];
 
 // ---------- Rule key for merge/override ----------
 
@@ -112,7 +80,6 @@ export function mergeRules(defaults: Rule[], overrides: Rule[]): Rule[] {
 const DEFAULT_CONFIG: ResolvedConfig = {
   enabled: true,
   rules: [],
-  useDefaults: true,
 };
 
 export const configLoader = new ConfigLoader<
@@ -120,21 +87,8 @@ export const configLoader = new ConfigLoader<
   ResolvedConfig
 >("shupervisor", DEFAULT_CONFIG, {
   scopes: ["global", "local", "memory"],
-  afterMerge: (resolved, global, local, memory) => {
-    const replace =
-      memory?.replaceDefaults ??
-      local?.replaceDefaults ??
-      global?.replaceDefaults ??
-      false;
-
-    if (replace) {
-      resolved.useDefaults = false;
-      // rules already contains only user rules from merge
-    } else {
-      resolved.useDefaults = true;
-      resolved.rules = mergeRules(DEFAULT_RULES, resolved.rules);
-    }
-
+  afterMerge: (resolved) => {
+    resolved.rules = mergeRules(DEFAULT_RULES, resolved.rules);
     return resolved;
   },
 });

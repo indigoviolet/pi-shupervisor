@@ -93,7 +93,7 @@ Matches when command name equals \`command\` AND any argument matches a flag in 
 \`\`\`
 Matches when command + subcommand + any forbidden flag all present.
 
-To disable a built-in default rule, add it with \`"enabled": false\`.
+To disable a rule defined in a higher scope (e.g. global), add it with \`"enabled": false\`.
 
 ## Instructions
 - Edit or create \`${filePath}\` with the appropriate rule added/modified in the \`rules\` array.

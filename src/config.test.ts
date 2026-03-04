@@ -1,28 +1,50 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_RULES, mergeRules, ruleKey } from "./config.js";
-import type { PreferRule } from "./rules.js";
+import { mergeRules, ruleKey } from "./config.js";
+import type { PreferRule, Rule } from "./rules.js";
+
+// Base rules for merge tests (simulating what a user might configure globally)
+const BASE_RULES: Rule[] = [
+  {
+    type: "prefer",
+    instead_of: "grep",
+    use: "rg",
+    reason: "Use rg instead of grep",
+  },
+  {
+    type: "prefer",
+    instead_of: "find",
+    use: "fd",
+    reason: "Use fd instead of find",
+  },
+  {
+    type: "forbid-flag",
+    command: "rg",
+    flags: ["-rn"],
+    reason: "-rn means --replace n",
+  },
+];
 
 describe("mergeRules", () => {
   it("returns defaults when no overrides", () => {
-    const result = mergeRules(DEFAULT_RULES, []);
-    expect(result).toEqual(DEFAULT_RULES);
+    const result = mergeRules(BASE_RULES, []);
+    expect(result).toEqual(BASE_RULES);
   });
 
-  it("overrides a default rule by key", () => {
+  it("overrides a rule by key", () => {
     const override: PreferRule = {
       type: "prefer",
       instead_of: "grep",
       use: "ag",
       reason: "Use ag in this project",
     };
-    const result = mergeRules(DEFAULT_RULES, [override]);
+    const result = mergeRules(BASE_RULES, [override]);
     const grepRule = result.find(
       (r) => r.type === "prefer" && r.instead_of === "grep",
     ) as PreferRule | undefined;
     expect(grepRule?.reason).toBe("Use ag in this project");
   });
 
-  it("disables a default rule via enabled: false", () => {
+  it("disables a rule via enabled: false", () => {
     const disable: PreferRule = {
       type: "prefer",
       instead_of: "grep",
@@ -30,7 +52,7 @@ describe("mergeRules", () => {
       reason: "",
       enabled: false,
     };
-    const result = mergeRules(DEFAULT_RULES, [disable]);
+    const result = mergeRules(BASE_RULES, [disable]);
     const grepRule = result.find(
       (r) => r.type === "prefer" && r.instead_of === "grep",
     );
@@ -44,8 +66,8 @@ describe("mergeRules", () => {
       use: "pnpm",
       reason: "Use pnpm",
     };
-    const result = mergeRules(DEFAULT_RULES, [custom]);
-    expect(result.length).toBe(DEFAULT_RULES.length + 1);
+    const result = mergeRules(BASE_RULES, [custom]);
+    expect(result.length).toBe(BASE_RULES.length + 1);
     expect(
       result.find((r) => r.type === "prefer" && r.instead_of === "npm"),
     ).toBeDefined();
@@ -58,11 +80,19 @@ describe("mergeRules", () => {
       use: "rg",
       reason: "Custom reason",
     };
-    const result = mergeRules(DEFAULT_RULES, [override]);
+    const result = mergeRules(BASE_RULES, [override]);
     const grepRules = result.filter(
       (r) => r.type === "prefer" && r.instead_of === "grep",
     );
     expect(grepRules.length).toBe(1);
+  });
+
+  it("works with empty defaults", () => {
+    const rules: Rule[] = [
+      { type: "prefer", instead_of: "npm", use: "pnpm", reason: "Use pnpm" },
+    ];
+    const result = mergeRules([], rules);
+    expect(result).toEqual(rules);
   });
 });
 

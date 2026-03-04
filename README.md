@@ -20,15 +20,6 @@ When the agent calls the `bash` tool, shupervisor:
 
 If the AST parse fails, a regex fallback catches common violations.
 
-## Default rules
-
-| Rule | Blocked | Suggested | Why |
-|------|---------|-----------|-----|
-| `prefer` | `grep` | `rg` | Faster, respects .gitignore, Rust regex syntax |
-| `prefer` | `find` | `fd` | Simpler syntax, respects .gitignore, smart case |
-| `forbid-flag` | `rg -rn` | `rg -n` | `-rn` means `--replace n`, not recursive + line numbers |
-| `forbid-pattern` | `yadm add -u/-A` | `yadm add <file>` | Home directory has too many tracked files |
-
 ## Rule types
 
 ### `prefer` — Use command X instead of Y
@@ -79,7 +70,7 @@ Matches when command + subcommand + any forbidden flag are all present.
 
 ## Configuration
 
-Config files are JSON with optional `enabled`, `rules`, and `replaceDefaults` fields.
+No rules are shipped by default — configure your own via global or project config files. Config files are JSON with optional `enabled` and `rules` fields.
 
 ### File locations
 
@@ -107,41 +98,9 @@ Create `.pi/extensions/shupervisor.json` in your project:
 }
 ```
 
-### Disabling a default rule
+### Disabling a rule
 
-Add the rule with `"enabled": false`:
-
-```json
-{
-  "rules": [
-    {
-      "type": "prefer",
-      "instead_of": "grep",
-      "use": "rg",
-      "reason": "",
-      "enabled": false
-    }
-  ]
-}
-```
-
-### Replacing all defaults
-
-Set `replaceDefaults: true` to use only your rules:
-
-```json
-{
-  "replaceDefaults": true,
-  "rules": [
-    {
-      "type": "prefer",
-      "instead_of": "npm",
-      "use": "pnpm",
-      "reason": "Use pnpm in this project"
-    }
-  ]
-}
-```
+If a global rule is defined and you want to disable it in a project, add the same rule with `"enabled": false` in the project config.
 
 ### Disabling the extension
 

@@ -4,11 +4,40 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { DEFAULT_RULES } from "./config.js";
 import { lint } from "./hook.js";
+import type { Rule } from "./rules.js";
+
+// Test rules (not shipped as defaults — used only for testing)
+const TEST_RULES: Rule[] = [
+  {
+    type: "prefer",
+    instead_of: "grep",
+    use: "rg",
+    reason: "Use rg instead of grep",
+  },
+  {
+    type: "prefer",
+    instead_of: "find",
+    use: "fd",
+    reason: "Use fd instead of find",
+  },
+  {
+    type: "forbid-flag",
+    command: "rg",
+    flags: ["-rn"],
+    reason: "-rn means --replace n",
+  },
+  {
+    type: "forbid-pattern",
+    command: "yadm",
+    subcommand: "add",
+    flags: ["-u", "-A"],
+    reason: "Stage files explicitly",
+  },
+];
 
 describe("lint (full pipeline)", () => {
-  const rules = DEFAULT_RULES;
+  const rules = TEST_RULES;
 
   describe("prefer rules — should block", () => {
     it.each([
@@ -149,6 +178,10 @@ describe("lint (full pipeline)", () => {
 
     it("variable as command name", () => {
       expect(lint("$CMD pattern", rules)).toBeUndefined();
+    });
+
+    it("no rules configured", () => {
+      expect(lint("grep pattern", [])).toBeUndefined();
     });
   });
 });

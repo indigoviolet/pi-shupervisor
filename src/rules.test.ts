@@ -5,8 +5,37 @@ import {
   type ForbidFlagRule,
   type ForbidPatternRule,
   type PreferRule,
+  type Rule,
 } from "./rules.js";
-import { DEFAULT_RULES } from "./config.js";
+
+// Test rules (not shipped as defaults — used only for testing)
+const TEST_RULES: Rule[] = [
+  {
+    type: "prefer",
+    instead_of: "grep",
+    use: "rg",
+    reason: "Use rg instead of grep",
+  },
+  {
+    type: "prefer",
+    instead_of: "find",
+    use: "fd",
+    reason: "Use fd instead of find",
+  },
+  {
+    type: "forbid-flag",
+    command: "rg",
+    flags: ["-rn"],
+    reason: "-rn means --replace n",
+  },
+  {
+    type: "forbid-pattern",
+    command: "yadm",
+    subcommand: "add",
+    flags: ["-u", "-A"],
+    reason: "Stage files explicitly",
+  },
+];
 
 describe("matchRule", () => {
   describe("prefer rules", () => {
@@ -65,8 +94,6 @@ describe("matchRule", () => {
     });
 
     it("matches flag even as non-flag argument (known trade-off)", () => {
-      // rg searching for the literal string "-rn" — still matches because
-      // we do simple string equality on words. Acceptable false positive.
       expect(matchRule(["rg", "-rn"], rnRule)).toBe(rnRule.reason);
     });
   });
@@ -120,15 +147,15 @@ describe("matchRule", () => {
 
 describe("checkCommand", () => {
   it("returns first matching rule's reason", () => {
-    expect(checkCommand(["grep", "pattern"], DEFAULT_RULES)).toContain("rg");
+    expect(checkCommand(["grep", "pattern"], TEST_RULES)).toContain("rg");
   });
 
   it("returns undefined when no rule matches", () => {
-    expect(checkCommand(["echo", "hello"], DEFAULT_RULES)).toBeUndefined();
+    expect(checkCommand(["echo", "hello"], TEST_RULES)).toBeUndefined();
   });
 
   it("skips disabled rules", () => {
-    const withDisabled = DEFAULT_RULES.map((r) =>
+    const withDisabled = TEST_RULES.map((r) =>
       r.type === "prefer" && r.instead_of === "grep"
         ? { ...r, enabled: false }
         : r,
