@@ -89,11 +89,4 @@ Config is JSON with `enabled` (boolean) and `rules` (array). No rules ship by de
 
 ## Adding rules
 
-Edit the config file directly, or use `/shupervisor:add`:
-
-```
-/shupervisor:add don't use cat to read files, use bat instead
-/shupervisor:add block docker run with --privileged flag
-```
-
-Run `/reload` after editing config files for changes to take effect.
+Edit the config JSON file directly. Run `/reload` after editing for changes to take effect.

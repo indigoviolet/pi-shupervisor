@@ -8,7 +8,6 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { configLoader } from "./config.js";
 import { setupCommandLintHook } from "./hook.js";
-import { registerAddRuleCommand } from "./commands/add-rule.js";
 
 export default async function (pi: ExtensionAPI) {
   await configLoader.load();
@@ -17,5 +16,4 @@ export default async function (pi: ExtensionAPI) {
   if (!config.enabled) return;
 
   setupCommandLintHook(pi);
-  registerAddRuleCommand(pi);
 }

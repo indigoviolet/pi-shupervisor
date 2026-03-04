@@ -149,19 +149,6 @@ grep -P 'complex-pcre-pattern' file # shupervisor:allow
 
 When a command is blocked, the reason message includes this override hint so the agent learns about it automatically.
 
-## Commands
-
-### `/shupervisor:add <description>`
-
-Add or edit a rule using natural language. The command injects the rule DSL documentation and current config file contents into the conversation, and the agent edits the config file directly.
-
-```
-/shupervisor:add don't use cat to read files, use bat instead
-/shupervisor:add block docker run with --privileged flag
-```
-
-After adding a rule, run `/reload` for changes to take effect.
-
 ## Development
 
 ```bash
