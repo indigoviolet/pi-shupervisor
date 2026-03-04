@@ -88,7 +88,7 @@ export const configLoader = new ConfigLoader<
   ShupervisorConfig,
   ResolvedConfig
 >("shupervisor", DEFAULT_CONFIG, {
-  scopes: ["global", "local", "memory"],
+  scopes: ["global", "local"],
   afterMerge: (resolved) => {
     resolved.rules = mergeRules(DEFAULT_RULES, resolved.rules);
     return resolved;
