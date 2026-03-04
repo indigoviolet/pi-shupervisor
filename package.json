@@ -10,9 +10,10 @@
     "url": "https://github.com/indigoviolet/pi-shupervisor"
   },
   "pi": {
-    "extensions": ["./src/index.ts"]
+    "extensions": ["./src/index.ts"],
+    "skills": ["./skills"]
   },
-  "files": ["src", "README.md"],
+  "files": ["src", "skills", "README.md"],
   "dependencies": {
     "@aliou/pi-utils-settings": "^0.4.0",
     "@aliou/sh": "^0.1.0"
