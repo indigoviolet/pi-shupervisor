@@ -50,6 +50,13 @@ export function registerRulesCommand(pi: ExtensionAPI): void {
 
       const lines: string[] = [];
 
+      const globalCount = globalRaw?.rules?.length ?? 0;
+      const localCount = localRaw?.rules?.length ?? 0;
+      const activeCount = config.rules.filter((r) => r.enabled !== false).length;
+
+      lines.push(`global: ${globalCount}, local: ${localCount}, merged: ${config.rules.length} (${activeCount} active)`);
+      lines.push("");
+
       if (config.rules.length === 0) {
         lines.push("No rules configured.");
         lines.push("");
@@ -57,7 +64,6 @@ export function registerRulesCommand(pi: ExtensionAPI): void {
         lines.push("  Global: ~/.pi/agent/extensions/shupervisor.json");
         lines.push("  Project: .pi/extensions/shupervisor.json");
       } else {
-        lines.push(`${config.rules.length} rules loaded:`);
         for (const rule of config.rules) {
           const source = ruleSource(rule, globalKeys, localKeys);
           lines.push(formatRule(rule) + source);
