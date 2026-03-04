@@ -1,5 +1,5 @@
 /**
- * /shupervisor:rules — list configured rules by scope.
+ * /shupervisor:rules — list active rules (what the hook actually checks).
  */
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
@@ -7,7 +7,7 @@ import { configLoader, ruleKey } from "../config.js";
 import type { Rule } from "../rules.js";
 
 function formatRule(rule: Rule): string {
-  const status = rule.enabled === false ? "  (disabled)" : "";
+  const status = rule.enabled === false ? " (disabled)" : "";
   switch (rule.type) {
     case "prefer":
       return `  prefer: ${rule.instead_of} → ${rule.use}${status}\n    ${rule.reason}`;
@@ -23,41 +23,44 @@ function formatRule(rule: Rule): string {
   }
 }
 
+function ruleSource(
+  rule: Rule,
+  globalKeys: Set<string>,
+  localKeys: Set<string>,
+): string {
+  const key = ruleKey(rule);
+  const inGlobal = globalKeys.has(key);
+  const inLocal = localKeys.has(key);
+  if (inGlobal && inLocal) return " [local override]";
+  if (inLocal) return " [local]";
+  if (inGlobal) return " [global]";
+  return "";
+}
+
 export function registerRulesCommand(pi: ExtensionAPI): void {
   pi.registerCommand("shupervisor:rules", {
-    description: "List configured shupervisor rules",
+    description: "List active shupervisor rules",
     handler: async (_args, ctx) => {
-      const globalConfig = configLoader.getRawConfig("global");
-      const localConfig = configLoader.getRawConfig("local");
-      const globalRules = globalConfig?.rules ?? [];
-      const localRules = localConfig?.rules ?? [];
+      const config = configLoader.getConfig();
+      const globalRaw = configLoader.getRawConfig("global");
+      const localRaw = configLoader.getRawConfig("local");
 
-      // Track which global rules are overridden by local
-      const localKeys = new Set(localRules.map(ruleKey));
+      const globalKeys = new Set((globalRaw?.rules ?? []).map(ruleKey));
+      const localKeys = new Set((localRaw?.rules ?? []).map(ruleKey));
 
       const lines: string[] = [];
 
-      if (globalRules.length === 0 && localRules.length === 0) {
+      if (config.rules.length === 0) {
         lines.push("No rules configured.");
         lines.push("");
         lines.push("Add rules to:");
         lines.push("  Global: ~/.pi/agent/extensions/shupervisor.json");
         lines.push("  Project: .pi/extensions/shupervisor.json");
       } else {
-        if (globalRules.length > 0) {
-          lines.push("Global (~/.pi/agent/extensions/shupervisor.json):");
-          for (const rule of globalRules) {
-            const overridden = localKeys.has(ruleKey(rule)) ? "  [overridden by local]" : "";
-            lines.push(formatRule(rule) + overridden);
-          }
-        }
-
-        if (localRules.length > 0) {
-          if (globalRules.length > 0) lines.push("");
-          lines.push("Project (.pi/extensions/shupervisor.json):");
-          for (const rule of localRules) {
-            lines.push(formatRule(rule));
-          }
+        lines.push(`${config.rules.length} rules loaded:`);
+        for (const rule of config.rules) {
+          const source = ruleSource(rule, globalKeys, localKeys);
+          lines.push(formatRule(rule) + source);
         }
       }
 
