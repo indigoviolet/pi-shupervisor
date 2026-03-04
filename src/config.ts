@@ -1,29 +1,23 @@
 /**
- * Configuration — rule DSL types, defaults, ConfigLoader setup, rule merging.
+ * Configuration — rule types, ConfigLoader, rule merging.
  */
 
 import { ConfigLoader } from "@aliou/pi-utils-settings";
 import type { Rule } from "./rules.js";
 
-// ---------- User-facing config (all optional) ----------
+// ---------- Config types ----------
 
 export interface ShupervisorConfig {
   enabled?: boolean;
   rules?: Rule[];
 }
 
-// ---------- Resolved config (all required) ----------
-
 export interface ResolvedConfig {
   enabled: boolean;
   rules: Rule[];
 }
 
-// ---------- Default rules (empty — configure via global/project config files) ----------
-
-export const DEFAULT_RULES: Rule[] = [];
-
-// ---------- Rule key for merge/override ----------
+// ---------- Rule key (for override/disable between scopes) ----------
 
 export function ruleKey(rule: Rule): string {
   switch (rule.type) {
@@ -41,33 +35,29 @@ export function ruleKey(rule: Rule): string {
 // ---------- Rule merging ----------
 
 /**
- * Merge default rules with user rules.
- * User rules with the same ruleKey override the default.
- * User rules with new keys are appended.
- * A user rule with enabled: false disables a default rule.
+ * Merge two rule lists. Later list wins by ruleKey (override/disable).
+ * New rules are appended.
  */
-export function mergeRules(defaults: Rule[], overrides: Rule[]): Rule[] {
+export function mergeRules(base: Rule[], overrides: Rule[]): Rule[] {
   const overrideMap = new Map<string, Rule>();
   for (const r of overrides) {
     overrideMap.set(ruleKey(r), r);
   }
 
-  // Start with defaults, applying overrides where keys match
   const result: Rule[] = [];
   const usedKeys = new Set<string>();
 
-  for (const def of defaults) {
-    const key = ruleKey(def);
+  for (const rule of base) {
+    const key = ruleKey(rule);
     const override = overrideMap.get(key);
     if (override) {
       result.push(override);
       usedKeys.add(key);
     } else {
-      result.push(def);
+      result.push(rule);
     }
   }
 
-  // Append user rules that don't match any default
   for (const [key, rule] of overrideMap) {
     if (!usedKeys.has(key)) {
       result.push(rule);
@@ -79,21 +69,21 @@ export function mergeRules(defaults: Rule[], overrides: Rule[]): Rule[] {
 
 // ---------- ConfigLoader ----------
 
-const DEFAULT_CONFIG: ResolvedConfig = {
-  enabled: true,
-  rules: [],
-};
-
 export const configLoader = new ConfigLoader<
   ShupervisorConfig,
   ResolvedConfig
->("shupervisor", DEFAULT_CONFIG, {
-  scopes: ["global", "local"],
-  afterMerge: (resolved, global, local) => {
-    // ConfigLoader's deep merge replaces arrays, so local rules clobber global.
-    // We need to explicitly merge: defaults → global → local by ruleKey.
-    const base = mergeRules(DEFAULT_RULES, global?.rules ?? []);
-    resolved.rules = mergeRules(base, local?.rules ?? []);
-    return resolved;
+>(
+  "shupervisor",
+  { enabled: true, rules: [] },
+  {
+    scopes: ["global", "local"],
+    afterMerge: (_resolved, global, local) => {
+      // ConfigLoader deep merge replaces arrays, so we merge rules ourselves:
+      // global rules + local rules (local overrides global by ruleKey)
+      return {
+        enabled: local?.enabled ?? global?.enabled ?? true,
+        rules: mergeRules(global?.rules ?? [], local?.rules ?? []),
+      };
+    },
   },
-});
+);
