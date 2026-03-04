@@ -89,8 +89,11 @@ export const configLoader = new ConfigLoader<
   ResolvedConfig
 >("shupervisor", DEFAULT_CONFIG, {
   scopes: ["global", "local"],
-  afterMerge: (resolved) => {
-    resolved.rules = mergeRules(DEFAULT_RULES, resolved.rules);
+  afterMerge: (resolved, global, local) => {
+    // ConfigLoader's deep merge replaces arrays, so local rules clobber global.
+    // We need to explicitly merge: defaults → global → local by ruleKey.
+    const base = mergeRules(DEFAULT_RULES, global?.rules ?? []);
+    resolved.rules = mergeRules(base, local?.rules ?? []);
     return resolved;
   },
 });
