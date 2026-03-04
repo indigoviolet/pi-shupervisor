@@ -1,0 +1,39 @@
+{
+  "name": "pi-shupervisor",
+  "version": "0.1.0",
+  "description": "Shell command linter for pi — AST-based rule enforcement with natural language configuration",
+  "license": "MIT",
+  "type": "module",
+  "keywords": ["pi-package", "pi-extension"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/indigoviolet/pi-shupervisor"
+  },
+  "pi": {
+    "extensions": ["./src/index.ts"]
+  },
+  "files": ["src", "README.md"],
+  "dependencies": {
+    "@aliou/pi-utils-settings": "^0.4.0",
+    "@aliou/sh": "^0.1.0"
+  },
+  "peerDependencies": {
+    "@mariozechner/pi-coding-agent": ">=0.51.0",
+    "@mariozechner/pi-tui": ">=0.51.0"
+  },
+  "peerDependenciesMeta": {
+    "@mariozechner/pi-coding-agent": { "optional": true },
+    "@mariozechner/pi-tui": { "optional": true }
+  },
+  "devDependencies": {
+    "@mariozechner/pi-coding-agent": "0.52.7",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  }
+}
