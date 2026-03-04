@@ -141,13 +141,16 @@ Unwrapping is recursive: `sudo xargs grep pattern` checks all three levels.
 
 ## Break-glass override
 
-If the agent genuinely needs a blocked command, it can append `# shupervisor:allow` as a trailing comment:
+When a command is blocked, the reason includes a one-time token. The agent can re-run the command with that token to override:
 
 ```bash
-grep -P 'complex-pcre-pattern' file # shupervisor:allow
+grep -P 'complex-pattern' file # shupervisor:allow:a7f3e2
 ```
 
-When a command is blocked, the reason message includes this override hint so the agent learns about it automatically.
+The token is an HMAC of the command using a per-session secret. This means:
+- The agent must get blocked first to receive the token
+- Tokens are command-specific — can't reuse across different commands
+- Tokens rotate on `/reload` or session restart
 
 ## Development
 

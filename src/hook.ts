@@ -3,8 +3,13 @@
  *
  * Flow: parse → walkCommands → unwrap → checkCommand
  * Falls back to regex matching if AST parse fails.
+ *
+ * Override: agent must append `# shupervisor:allow:<token>` where token
+ * is a HMAC of the command using a per-session secret. The token is
+ * provided in the block reason so the agent must get blocked first.
  */
 
+import { createHmac, randomBytes } from "node:crypto";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { parse } from "@aliou/sh";
 import { configLoader } from "./config.js";
@@ -68,30 +73,60 @@ export function checkCommandFallback(
   return undefined;
 }
 
-// ---------- Override marker ----------
+// ---------- Override tokens ----------
 
-const ALLOW_MARKER = /\s*#\s*shupervisor:allow\b/;
+const TOKEN_LENGTH = 6;
+
+/** Matches `# shupervisor:allow:<hex>` at the end of a command. */
+const ALLOW_MARKER = /\s*#\s*shupervisor:allow:([0-9a-f]+)\s*$/;
 
 /**
- * Check if a command contains the break-glass override marker.
+ * Per-session secret for HMAC tokens. Rotates on reload.
+ * Exported for testing only.
  */
-export function hasAllowMarker(command: string): boolean {
-  return ALLOW_MARKER.test(command);
+export let _secret = randomBytes(32);
+
+/** Reset secret (called at extension init so /reload rotates it). */
+export function _resetSecret(): void {
+  _secret = randomBytes(32);
 }
 
-/** Suffix appended to every block reason so the agent learns the override. */
-const OVERRIDE_HINT =
-  "\n\nTo override: re-run the command with a trailing `# shupervisor:allow` comment.";
+/** Compute override token for a command. */
+export function computeToken(command: string): string {
+  return createHmac("sha256", _secret)
+    .update(command)
+    .digest("hex")
+    .slice(0, TOKEN_LENGTH);
+}
+
+/**
+ * Check if a command has a valid override token.
+ * Returns the command with the marker stripped if valid, or null if invalid/absent.
+ */
+export function checkAllowToken(command: string): string | null {
+  const match = command.match(ALLOW_MARKER);
+  if (!match) return null;
+
+  const token = match[1]!;
+  const stripped = command.slice(0, match.index!);
+  const expected = computeToken(stripped);
+
+  return token === expected ? stripped : null;
+}
 
 // ---------- AST-based lint ----------
 
 /**
  * Lint a shell command string against rules.
  * Returns the block reason if a violation is found, undefined otherwise.
- * Returns undefined (allows) if the command contains `# shupervisor:allow`.
+ * Returns undefined (allows) if the command has a valid override token.
  */
-export function lint(command: string, rules: Rule[]): string | undefined {
-  if (hasAllowMarker(command)) return undefined;
+export function lint(
+  command: string,
+  rules: Rule[],
+): string | undefined {
+  // Check for valid override token
+  if (checkAllowToken(command) !== null) return undefined;
 
   const activeRules = rules.filter((r) => r.enabled !== false);
   if (activeRules.length === 0) return undefined;
@@ -123,9 +158,17 @@ export function lint(command: string, rules: Rule[]): string | undefined {
   }
 }
 
+/** Build override hint with the token for the specific command. */
+function overrideHint(command: string): string {
+  const token = computeToken(command);
+  return `\n\nTo override, re-run with: \`# shupervisor:allow:${token}\` appended to the command.`;
+}
+
 // ---------- Hook setup ----------
 
 export function setupCommandLintHook(pi: ExtensionAPI): void {
+  _resetSecret();
+
   pi.on("tool_call", async (event, ctx) => {
     if (event.toolName !== "bash") return;
 
@@ -139,7 +182,7 @@ export function setupCommandLintHook(pi: ExtensionAPI): void {
       if (ctx.hasUI) {
         ctx.ui.notify("Command blocked by shupervisor", "warning");
       }
-      return { block: true, reason: violation + OVERRIDE_HINT };
+      return { block: true, reason: violation + overrideHint(command) };
     }
   });
 }

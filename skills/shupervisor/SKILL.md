@@ -13,11 +13,13 @@ When you call the `bash` tool, shupervisor parses the command, walks the AST, un
 
 ## Override
 
-If you genuinely need a blocked command, append `# shupervisor:allow`:
+When a command is blocked, the block reason includes a one-time token. To override, re-run the command with that exact token appended:
 
 ```bash
-grep -P 'complex-pattern' file # shupervisor:allow
+grep -P 'complex-pattern' file # shupervisor:allow:<token>
 ```
+
+The token is specific to the exact command text and changes each session. You must get blocked first to receive the token — you cannot precompute it.
 
 ## Rule types
 

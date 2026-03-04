@@ -3,8 +3,8 @@
  * Tests: shell string → parse → walk → unwrap → match.
  */
 
-import { describe, expect, it } from "vitest";
-import { lint } from "./hook.js";
+import { describe, expect, it, beforeEach } from "vitest";
+import { lint, computeToken, checkAllowToken, _resetSecret } from "./hook.js";
 import type { Rule } from "./rules.js";
 
 // Test rules (not shipped as defaults — used only for testing)
@@ -230,37 +230,76 @@ describe("lint (full pipeline)", () => {
     });
   });
 
-  describe("break-glass override (# shupervisor:allow)", () => {
-    it("allows a blocked prefer command with override marker", () => {
-      expect(lint("grep pattern src/ # shupervisor:allow", rules)).toBeUndefined();
+  describe("break-glass override (token-based)", () => {
+    beforeEach(() => {
+      _resetSecret();
     });
 
-    it("allows a blocked forbid-flag with override marker", () => {
-      expect(lint("rg -rn pattern src/ # shupervisor:allow", rules)).toBeUndefined();
+    it("allows a blocked command with valid token", () => {
+      const cmd = "grep pattern src/";
+      const token = computeToken(cmd);
+      expect(lint(`${cmd} # shupervisor:allow:${token}`, rules)).toBeUndefined();
     });
 
-    it("allows a blocked forbid-pattern with override marker", () => {
-      expect(lint("yadm add -u # shupervisor:allow", rules)).toBeUndefined();
+    it("blocks with invalid token", () => {
+      expect(lint("grep pattern src/ # shupervisor:allow:000000", rules)).toBeDefined();
     });
 
-    it("allows a blocked forbid-arg-pattern with override marker", () => {
-      expect(lint("rg 'foo\\|bar' src/ # shupervisor:allow", rules)).toBeUndefined();
+    it("blocks with no token", () => {
+      expect(lint("grep pattern src/ # shupervisor:allow:", rules)).toBeDefined();
     });
 
-    it("works with extra whitespace before marker", () => {
-      expect(lint("grep pattern    # shupervisor:allow", rules)).toBeUndefined();
-    });
-
-    it("works with marker on multiline command", () => {
-      expect(lint("grep pattern \\\n  src/ # shupervisor:allow", rules)).toBeUndefined();
-    });
-
-    it("still blocks without the marker", () => {
+    it("blocks without any marker", () => {
       expect(lint("grep pattern src/", rules)).toBeDefined();
     });
 
-    it("does not trigger on partial marker", () => {
-      expect(lint("grep pattern # shupervisor", rules)).toBeDefined();
+    it("token is specific to the command", () => {
+      const token = computeToken("grep pattern src/");
+      // Same token doesn't work for a different command
+      expect(lint(`grep other src/ # shupervisor:allow:${token}`, rules)).toBeDefined();
     });
+
+    it("works with forbid-flag rules", () => {
+      const cmd = "rg -rn pattern src/";
+      const token = computeToken(cmd);
+      expect(lint(`${cmd} # shupervisor:allow:${token}`, rules)).toBeUndefined();
+    });
+
+    it("works with forbid-pattern rules", () => {
+      const cmd = "yadm add -u";
+      const token = computeToken(cmd);
+      expect(lint(`${cmd} # shupervisor:allow:${token}`, rules)).toBeUndefined();
+    });
+
+    it("token changes after secret rotation", () => {
+      const token1 = computeToken("grep pattern");
+      _resetSecret();
+      const token2 = computeToken("grep pattern");
+      expect(token1).not.toBe(token2);
+    });
+  });
+});
+
+describe("checkAllowToken", () => {
+  beforeEach(() => {
+    _resetSecret();
+  });
+
+  it("returns stripped command for valid token", () => {
+    const cmd = "grep pattern src/";
+    const token = computeToken(cmd);
+    expect(checkAllowToken(`${cmd} # shupervisor:allow:${token}`)).toBe(cmd);
+  });
+
+  it("returns null for invalid token", () => {
+    expect(checkAllowToken("grep pattern # shupervisor:allow:badbad")).toBeNull();
+  });
+
+  it("returns null for no marker", () => {
+    expect(checkAllowToken("grep pattern")).toBeNull();
+  });
+
+  it("returns null for old marker format without token", () => {
+    expect(checkAllowToken("grep pattern # shupervisor:allow")).toBeNull();
   });
 });
