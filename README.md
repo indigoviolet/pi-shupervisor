@@ -139,6 +139,16 @@ Shupervisor sees through wrapper commands to check the actual command being run:
 
 Unwrapping is recursive: `sudo xargs grep pattern` checks all three levels.
 
+## Break-glass override
+
+If the agent genuinely needs a blocked command, it can append `# shupervisor:allow` as a trailing comment:
+
+```bash
+grep -P 'complex-pcre-pattern' file # shupervisor:allow
+```
+
+When a command is blocked, the reason message includes this override hint so the agent learns about it automatically.
+
 ## Commands
 
 ### `/shupervisor:settings`

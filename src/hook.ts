@@ -68,13 +68,31 @@ export function checkCommandFallback(
   return undefined;
 }
 
+// ---------- Override marker ----------
+
+const ALLOW_MARKER = /\s*#\s*shupervisor:allow\b/;
+
+/**
+ * Check if a command contains the break-glass override marker.
+ */
+export function hasAllowMarker(command: string): boolean {
+  return ALLOW_MARKER.test(command);
+}
+
+/** Suffix appended to every block reason so the agent learns the override. */
+const OVERRIDE_HINT =
+  "\n\nTo override: re-run the command with a trailing `# shupervisor:allow` comment.";
+
 // ---------- AST-based lint ----------
 
 /**
  * Lint a shell command string against rules.
  * Returns the block reason if a violation is found, undefined otherwise.
+ * Returns undefined (allows) if the command contains `# shupervisor:allow`.
  */
 export function lint(command: string, rules: Rule[]): string | undefined {
+  if (hasAllowMarker(command)) return undefined;
+
   const activeRules = rules.filter((r) => r.enabled !== false);
   if (activeRules.length === 0) return undefined;
 
@@ -121,7 +139,7 @@ export function setupCommandLintHook(pi: ExtensionAPI): void {
       if (ctx.hasUI) {
         ctx.ui.notify("Command blocked by shupervisor", "warning");
       }
-      return { block: true, reason: violation };
+      return { block: true, reason: violation + OVERRIDE_HINT };
     }
   });
 }

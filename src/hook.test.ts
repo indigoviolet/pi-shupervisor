@@ -208,4 +208,38 @@ describe("lint (full pipeline)", () => {
       expect(lint("grep pattern", [])).toBeUndefined();
     });
   });
+
+  describe("break-glass override (# shupervisor:allow)", () => {
+    it("allows a blocked prefer command with override marker", () => {
+      expect(lint("grep pattern src/ # shupervisor:allow", rules)).toBeUndefined();
+    });
+
+    it("allows a blocked forbid-flag with override marker", () => {
+      expect(lint("rg -rn pattern src/ # shupervisor:allow", rules)).toBeUndefined();
+    });
+
+    it("allows a blocked forbid-pattern with override marker", () => {
+      expect(lint("yadm add -u # shupervisor:allow", rules)).toBeUndefined();
+    });
+
+    it("allows a blocked forbid-arg-pattern with override marker", () => {
+      expect(lint("rg 'foo\\|bar' src/ # shupervisor:allow", rules)).toBeUndefined();
+    });
+
+    it("works with extra whitespace before marker", () => {
+      expect(lint("grep pattern    # shupervisor:allow", rules)).toBeUndefined();
+    });
+
+    it("works with marker on multiline command", () => {
+      expect(lint("grep pattern \\\n  src/ # shupervisor:allow", rules)).toBeUndefined();
+    });
+
+    it("still blocks without the marker", () => {
+      expect(lint("grep pattern src/", rules)).toBeDefined();
+    });
+
+    it("does not trigger on partial marker", () => {
+      expect(lint("grep pattern # shupervisor", rules)).toBeDefined();
+    });
+  });
 });
