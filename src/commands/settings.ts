@@ -35,8 +35,11 @@ export function registerShupervisorSettings(pi: ExtensionAPI): void {
     commandDescription: "Configure shupervisor rules and settings",
     title: "Shupervisor Settings",
     configStore: configLoader,
-    buildSections: (tabConfig, resolved, ctx) => {
+    buildSections: (tabConfig, resolved, _ctx) => {
       const sections = [];
+
+      // Read from draft (tabConfig) when available, fall back to resolved
+      const enabled = tabConfig?.enabled ?? resolved.enabled;
 
       // General section
       sections.push({
@@ -47,20 +50,32 @@ export function registerShupervisorSettings(pi: ExtensionAPI): void {
             label: "Enabled",
             description: "Enable or disable the shupervisor extension",
             values: ["enabled", "disabled"],
-            currentValue: resolved.enabled ? "enabled" : "disabled",
+            currentValue: enabled ? "enabled" : "disabled",
           },
         ],
       });
 
-      // Rules section
+      // Build a map of draft rule overrides for quick lookup
+      const draftRuleMap = new Map<string, Rule>();
+      if (tabConfig?.rules) {
+        for (const r of tabConfig.rules) {
+          draftRuleMap.set(ruleKey(r), r);
+        }
+      }
+
+      // Rules section — use resolved rules as the list, but check draft for current values
       const ruleItems = resolved.rules.map((rule) => {
         const key = ruleKey(rule);
+        const draftRule = draftRuleMap.get(key);
+        const isEnabled = draftRule
+          ? draftRule.enabled !== false
+          : rule.enabled !== false;
         return {
           id: `rule:${key}`,
           label: ruleLabel(rule),
           description: rule.reason,
           values: ["enabled", "disabled"],
-          currentValue: rule.enabled !== false ? "enabled" : "disabled",
+          currentValue: isEnabled ? "enabled" : "disabled",
         };
       });
 
