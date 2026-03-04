@@ -40,6 +40,13 @@ const TEST_RULES: Rule[] = [
     pattern: "\\\\\\|",
     reason: "rg uses Rust regex — use foo|bar not foo\\|bar",
   },
+  {
+    type: "forbid-pattern",
+    command: "git",
+    subcommand: "stash",
+    flags: [],
+    reason: "Don't use git stash",
+  },
 ];
 
 describe("lint (full pipeline)", () => {
@@ -119,6 +126,20 @@ describe("lint (full pipeline)", () => {
 
     it("blocks rg with escaped pipe through wrapper", () => {
       expect(lint("sudo rg 'foo\\|bar' src/", rules)).toBeDefined();
+    });
+  });
+
+  describe("forbid-pattern with empty flags (block subcommand)", () => {
+    it("blocks git stash", () => {
+      expect(lint("git stash", rules)).toBeDefined();
+    });
+
+    it("blocks git stash pop", () => {
+      expect(lint("git stash pop", rules)).toBeDefined();
+    });
+
+    it("allows git commit", () => {
+      expect(lint("git commit -m 'test'", rules)).toBeUndefined();
     });
   });
 

@@ -143,6 +143,39 @@ describe("matchRule", () => {
         noSub.reason,
       );
     });
+
+    it("matches on command+subcommand alone when flags is empty", () => {
+      const gitStash: ForbidPatternRule = {
+        type: "forbid-pattern",
+        command: "git",
+        subcommand: "stash",
+        flags: [],
+        reason: "Don't use git stash",
+      };
+      expect(matchRule(["git", "stash"], gitStash)).toBe(gitStash.reason);
+      expect(matchRule(["git", "stash", "pop"], gitStash)).toBe(gitStash.reason);
+    });
+
+    it("matches on command alone when both subcommand and flags are empty", () => {
+      const noTelnet: ForbidPatternRule = {
+        type: "forbid-pattern",
+        command: "telnet",
+        flags: [],
+        reason: "Don't use telnet",
+      };
+      expect(matchRule(["telnet", "host"], noTelnet)).toBe(noTelnet.reason);
+    });
+
+    it("does not match different subcommand when flags is empty", () => {
+      const gitStash: ForbidPatternRule = {
+        type: "forbid-pattern",
+        command: "git",
+        subcommand: "stash",
+        flags: [],
+        reason: "Don't use git stash",
+      };
+      expect(matchRule(["git", "commit", "-m", "hi"], gitStash)).toBeUndefined();
+    });
   });
 
   describe("forbid-arg-pattern rules", () => {

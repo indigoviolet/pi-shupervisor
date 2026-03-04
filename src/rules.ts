@@ -90,6 +90,8 @@ export function matchRule(words: string[], rule: Rule): string | undefined {
     case "forbid-pattern": {
       if (words[0] !== rule.command) return undefined;
       if (rule.subcommand && words[1] !== rule.subcommand) return undefined;
+      // Empty flags = match on command+subcommand alone
+      if (rule.flags.length === 0) return rule.reason;
       if (words.some((w) => rule.flags.includes(w))) return rule.reason;
       return undefined;
     }
