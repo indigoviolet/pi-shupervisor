@@ -180,19 +180,32 @@ export function setupCommandLintHook(pi: ExtensionAPI): void {
   _resetSecret();
 
   pi.on("tool_call", async (event, ctx) => {
-    if (event.toolName !== "bash") return;
+    const input = event.input as Record<string, unknown>;
 
-    const command = String(
-      (event.input as Record<string, unknown>).command ?? "",
-    );
+    let commands: string[];
+
+    if (event.toolName === "bash") {
+      commands = [String(input.command ?? "")];
+    } else if (
+      event.toolName === "tmux" &&
+      input.action === "run" &&
+      Array.isArray(input.commands)
+    ) {
+      commands = input.commands.map(String);
+    } else {
+      return;
+    }
+
     const config = configLoader.getConfig();
-    const violation = lint(command, config.rules);
 
-    if (violation) {
-      if (ctx.hasUI) {
-        ctx.ui.notify("Command blocked by shupervisor", "warning");
+    for (const command of commands) {
+      const violation = lint(command, config.rules);
+      if (violation) {
+        if (ctx.hasUI) {
+          ctx.ui.notify("Command blocked by shupervisor", "warning");
+        }
+        return { block: true, reason: violation + overrideHint(command) };
       }
-      return { block: true, reason: violation + overrideHint(command) };
     }
   });
 }
