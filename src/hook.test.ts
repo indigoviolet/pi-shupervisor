@@ -313,6 +313,17 @@ describe("lint (full pipeline)", () => {
       expect(lint(`${cmd} # shupervisor:allow:${token}`, rules)).toBeUndefined();
     });
 
+    it("token is stable even when retrying with an invalid token", () => {
+      const bare = "grep pattern src/";
+      const correctToken = computeToken(bare);
+      // Agent first tries with a made-up token
+      const withBadToken = `${bare} # shupervisor:allow:badbad`;
+      // lint blocks it (bad token)
+      expect(lint(withBadToken, rules)).toBeDefined();
+      // The correct token for the bare command should still work
+      expect(lint(`${bare} # shupervisor:allow:${correctToken}`, rules)).toBeUndefined();
+    });
+
     it("token changes after secret rotation", () => {
       const token1 = computeToken("grep pattern");
       _resetSecret();
