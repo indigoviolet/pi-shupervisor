@@ -168,11 +168,11 @@ export function lint(
   }
 }
 
-/** Build override hint with the token for the bare command (marker stripped). */
+/** Build override hint with the full ready-to-run command. */
 function overrideHint(command: string): string {
   const bare = command.replace(ALLOW_MARKER, "");
   const token = computeToken(bare);
-  return `\n\nTo override, re-run with: \`# shupervisor:allow:${token}\` appended to the command.`;
+  return `\n\nTo override, run exactly:\n${bare} # shupervisor:allow:${token}`;
 }
 
 // ---------- Hook setup ----------
