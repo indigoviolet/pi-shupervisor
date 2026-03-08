@@ -191,9 +191,9 @@ export function setupCommandLintHook(pi: ExtensionAPI): void {
     } else if (
       event.toolName === "tmux" &&
       input.action === "run" &&
-      Array.isArray(input.commands)
+      typeof input.command === "string"
     ) {
-      commands = input.commands.map(String);
+      commands = [input.command];
     } else {
       return;
     }
