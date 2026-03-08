@@ -1,11 +1,12 @@
 /**
- * Rule DSL — type definitions and matching logic.
+ * Rule DSL — type definitions, matching logic, and validation.
  *
- * Four rule types:
+ * Five rule types:
  * - prefer: block command X, suggest command Y
  * - forbid-flag: block specific flags on a command
  * - forbid-pattern: block command + subcommand + flag combinations
  * - forbid-arg-pattern: block when any argument matches a regex
+ * - require-context: block unless required strings are present
  */
 
 /**
@@ -56,6 +57,7 @@ export interface ForbidPatternRule {
 export interface ForbidArgPatternRule {
   type: "forbid-arg-pattern";
   command: string;
+  subcommand?: string;
   pattern: string; // regex pattern to test against arguments
   reason: string;
   enabled?: boolean;
@@ -123,8 +125,10 @@ export function matchRule(
 
     case "forbid-arg-pattern": {
       if (words[0] !== rule.command) return undefined;
+      if (rule.subcommand && words[1] !== rule.subcommand) return undefined;
+      const startIdx = rule.subcommand ? 2 : 1;
       const re = new RegExp(rule.pattern);
-      if (words.slice(1).some((w) => re.test(w))) return rule.reason;
+      if (words.slice(startIdx).some((w) => re.test(w))) return rule.reason;
       return undefined;
     }
 
@@ -155,4 +159,102 @@ export function checkCommand(
     if (reason) return reason;
   }
   return undefined;
+}
+
+// ---------- Validation ----------
+
+/** Known fields per rule type. */
+const KNOWN_FIELDS: Record<string, Set<string>> = {
+  prefer: new Set(["type", "instead_of", "use", "reason", "enabled"]),
+  "forbid-flag": new Set(["type", "command", "flags", "reason", "enabled"]),
+  "forbid-pattern": new Set([
+    "type",
+    "command",
+    "subcommand",
+    "flags",
+    "reason",
+    "enabled",
+  ]),
+  "forbid-arg-pattern": new Set([
+    "type",
+    "command",
+    "subcommand",
+    "pattern",
+    "reason",
+    "enabled",
+  ]),
+  "require-context": new Set([
+    "type",
+    "command",
+    "subcommand",
+    "requires",
+    "except",
+    "reason",
+    "enabled",
+  ]),
+};
+
+/** Required fields per rule type (beyond `type` and `reason`). */
+const REQUIRED_FIELDS: Record<string, string[]> = {
+  prefer: ["instead_of", "use"],
+  "forbid-flag": ["command", "flags"],
+  "forbid-pattern": ["command", "flags"],
+  "forbid-arg-pattern": ["command", "pattern"],
+  "require-context": ["command", "requires"],
+};
+
+export interface RuleWarning {
+  index: number;
+  message: string;
+}
+
+/**
+ * Validate an array of rules. Returns warnings for unknown fields,
+ * missing required fields, and unrecognized types.
+ */
+export function validateRules(rules: unknown[]): RuleWarning[] {
+  const warnings: RuleWarning[] = [];
+
+  for (let i = 0; i < rules.length; i++) {
+    const rule = rules[i] as Record<string, unknown>;
+
+    if (!rule || typeof rule !== "object") {
+      warnings.push({ index: i, message: "Rule is not an object" });
+      continue;
+    }
+
+    const type = rule.type as string | undefined;
+    if (!type) {
+      warnings.push({ index: i, message: "Missing 'type' field" });
+      continue;
+    }
+
+    const known = KNOWN_FIELDS[type];
+    if (!known) {
+      warnings.push({ index: i, message: `Unknown rule type '${type}'` });
+      continue;
+    }
+
+    // Check for unknown fields
+    for (const key of Object.keys(rule)) {
+      if (!known.has(key)) {
+        warnings.push({
+          index: i,
+          message: `Unknown field '${key}' on ${type} rule (ignored)`,
+        });
+      }
+    }
+
+    // Check required fields
+    if (!rule.reason) {
+      warnings.push({ index: i, message: "Missing 'reason' field" });
+    }
+    for (const field of REQUIRED_FIELDS[type] ?? []) {
+      if (rule[field] === undefined || rule[field] === null) {
+        warnings.push({ index: i, message: `Missing required field '${field}'` });
+      }
+    }
+  }
+
+  return warnings;
 }

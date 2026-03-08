@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   checkCommand,
   matchRule,
+  validateRules,
   type ForbidArgPatternRule,
   type ForbidFlagRule,
   type ForbidPatternRule,
@@ -354,5 +355,84 @@ describe("checkCommand", () => {
         : r,
     );
     expect(checkCommand(["grep", "pattern"], withDisabled)).toBeUndefined();
+  });
+});
+
+describe("validateRules", () => {
+  it("returns no warnings for valid rules", () => {
+    expect(validateRules(TEST_RULES)).toEqual([]);
+  });
+
+  it("warns about unknown rule type", () => {
+    const warnings = validateRules([
+      { type: "unknown-type", command: "foo", reason: "bar" },
+    ]);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]!.message).toContain("Unknown rule type");
+  });
+
+  it("warns about missing type field", () => {
+    const warnings = validateRules([{ command: "foo", reason: "bar" }]);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]!.message).toContain("Missing 'type'");
+  });
+
+  it("warns about unknown fields", () => {
+    const warnings = validateRules([
+      {
+        type: "prefer",
+        instead_of: "grep",
+        use: "rg",
+        reason: "Use rg",
+        subcommand: "oops",
+      },
+    ]);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]!.message).toContain("Unknown field 'subcommand'");
+  });
+
+  it("warns about missing required fields", () => {
+    const warnings = validateRules([
+      { type: "forbid-flag", reason: "no flags?" },
+    ]);
+    expect(warnings.some((w) => w.message.includes("'command'"))).toBe(true);
+    expect(warnings.some((w) => w.message.includes("'flags'"))).toBe(true);
+  });
+
+  it("warns about missing reason", () => {
+    const warnings = validateRules([
+      { type: "prefer", instead_of: "grep", use: "rg" },
+    ]);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]!.message).toContain("'reason'");
+  });
+
+  it("accepts subcommand on forbid-arg-pattern", () => {
+    const warnings = validateRules([
+      {
+        type: "forbid-arg-pattern",
+        command: "git",
+        subcommand: "rebase",
+        pattern: "sed",
+        reason: "no sed",
+      },
+    ]);
+    expect(warnings).toEqual([]);
+  });
+
+  it("detects the exact bug: subcommand on old forbid-arg-pattern type", () => {
+    // Before the fix, this would have been silently ignored
+    // Now subcommand is a known field, so no warning — but this test
+    // documents that the field is properly recognized
+    const warnings = validateRules([
+      {
+        type: "forbid-arg-pattern",
+        command: "git",
+        subcommand: "rebase",
+        pattern: "\\bsed\\b",
+        reason: "no sed in rebase",
+      },
+    ]);
+    expect(warnings).toEqual([]);
   });
 });

@@ -205,6 +205,18 @@ describe("ruleKey", () => {
         pattern: "\\\\\\|",
         reason: "",
       }),
-    ).toBe("forbid-arg-pattern:rg:\\\\\\|");
+    ).toBe("forbid-arg-pattern:rg::\\\\\\|");
+  });
+
+  it("forbid-arg-pattern rules key includes subcommand", () => {
+    expect(
+      ruleKey({
+        type: "forbid-arg-pattern",
+        command: "git",
+        subcommand: "rebase",
+        pattern: "sed",
+        reason: "",
+      }),
+    ).toBe("forbid-arg-pattern:git:rebase:sed");
   });
 });
