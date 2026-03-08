@@ -141,4 +141,43 @@ describe("unwrapCommand", () => {
       expect(result).toEqual([["echo", "grep"]]);
     });
   });
+
+  describe("env var assignment prefixes", () => {
+    it("strips VAR=value prefix to find real command", () => {
+      const result = unwrapCommand(["FOO=bar", "git", "rebase", "-i"]);
+      expect(result.some((r) => r[0] === "git")).toBe(true);
+    });
+
+    it("strips multiple env var prefixes", () => {
+      const result = unwrapCommand([
+        "GIT_EDITOR=true",
+        "GIT_SEQUENCE_EDITOR=:",
+        "git",
+        "rebase",
+        "-i",
+      ]);
+      expect(result.some((r) => r[0] === "git")).toBe(true);
+    });
+
+    it("strips env vars with complex values", () => {
+      const result = unwrapCommand([
+        "GIT_SEQUENCE_EDITOR=sed -i '' 's/^pick/reword/'",
+        "git",
+        "rebase",
+        "-i",
+        "main",
+      ]);
+      expect(result.some((r) => r[0] === "git")).toBe(true);
+    });
+
+    it("does not strip if no command follows env vars", () => {
+      const result = unwrapCommand(["FOO=bar"]);
+      expect(result).toEqual([["FOO=bar"]]);
+    });
+
+    it("does not treat regular arguments as env vars", () => {
+      const result = unwrapCommand(["echo", "FOO=bar"]);
+      expect(result).toEqual([["echo", "FOO=bar"]]);
+    });
+  });
 });

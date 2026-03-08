@@ -115,8 +115,29 @@ function extractFirstArgIsShell(args: string[]): string[][] {
  * Recursively unwraps nested wrappers.
  * For dash-c/first-arg-is-shell, re-parses the string via @aliou/sh.
  */
+/** Check if a word looks like VAR=value (env var assignment prefix). */
+function isEnvAssign(word: string): boolean {
+  const eqIdx = word.indexOf("=");
+  if (eqIdx <= 0) return false;
+  // Variable name must be valid: letters, digits, underscores, starting with non-digit
+  return /^[A-Za-z_][A-Za-z0-9_]*=/.test(word);
+}
+
 export function unwrapCommand(words: string[]): string[][] {
   if (words.length === 0) return [];
+
+  // Skip leading VAR=value words (env var assignments that the parser
+  // didn't recognize as assignments, e.g. GIT_EDITOR="..." git rebase)
+  let startIdx = 0;
+  while (startIdx < words.length && isEnvAssign(words[startIdx]!)) {
+    startIdx++;
+  }
+  if (startIdx > 0 && startIdx < words.length) {
+    const effective = words.slice(startIdx);
+    const result: string[][] = [words];
+    result.push(...unwrapCommand(effective));
+    return result;
+  }
 
   const result: string[][] = [words];
   const cmdName = words[0]!;

@@ -41,6 +41,13 @@ const TEST_RULES: Rule[] = [
     reason: "rg uses Rust regex — use foo|bar not foo\\|bar",
   },
   {
+    type: "forbid-arg-pattern",
+    command: "git",
+    subcommand: "rebase",
+    pattern: "\\bsed\\b",
+    reason: "Don't use sed in git rebase",
+  },
+  {
     type: "forbid-pattern",
     command: "git",
     subcommand: "stash",
@@ -170,6 +177,39 @@ describe("lint (full pipeline)", () => {
 
     it("does not block git commit", () => {
       expect(lint("git commit -m 'test'", rules)).toBeUndefined();
+    });
+
+    it("does not block git rebase --continue", () => {
+      expect(lint("git rebase --continue", rules)).toBeUndefined();
+    });
+  });
+
+  describe("forbid-arg-pattern in env var assignments", () => {
+    it("blocks sed in GIT_SEQUENCE_EDITOR assignment", () => {
+      expect(
+        lint(
+          `GIT_SEQUENCE_EDITOR="sed -i '' 's/^pick/reword/'" git rebase -i main`,
+          rules,
+        ),
+      ).toBeDefined();
+    });
+
+    it("blocks sed in GIT_SEQUENCE_EDITOR with cd prefix", () => {
+      expect(
+        lint(
+          `cd /some/path && GIT_SEQUENCE_EDITOR="sed -i '' 's/^pick/reword/'" GIT_EDITOR="cp /tmp/msg.txt" git rebase -i main --no-verify`,
+          rules,
+        ),
+      ).toBeDefined();
+    });
+
+    it("does not block git rebase without sed", () => {
+      expect(
+        lint(
+          `GIT_SEQUENCE_EDITOR=: GIT_EDITOR=true git rebase -i --autosquash main`,
+          rules,
+        ),
+      ).toBeUndefined();
     });
 
     it("allows git rebase --continue without env vars", () => {
